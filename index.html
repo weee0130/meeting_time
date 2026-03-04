@@ -7,17 +7,18 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
         body { font-family: 'Inter', sans-serif; }
         .no-select { user-select: none; }
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .calendar-grid { display: grid; grid-template-columns: 64px repeat(7, 1fr); }
-        /* 優化選取中格子的過渡效果 */
+        .calendar-grid { display: grid; grid-template-columns: 50px repeat(7, 1fr); }
         .slot-active { background-color: #3b82f6 !important; }
         .slot-hover:hover { background-color: #eff6ff; }
+        /* 縮小捲軸 */
+        .custom-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-900 min-h-screen pb-20">
+<body class="bg-slate-100 text-slate-900 min-h-screen pb-10">
 
     <!-- Tooltip 氣泡 -->
     <div id="tooltip" class="fixed z-[9999] pointer-events-none bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-2xl border border-slate-700 hidden">
@@ -27,39 +28,45 @@
         <div id="tooltip-names" class="flex flex-wrap gap-1 max-w-[180px]"></div>
     </div>
 
-    <!-- 導航欄 -->
-    <nav class="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-6 py-4">
+    <!-- 導航欄 (尺寸縮小) -->
+    <nav class="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-4 py-2">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-black text-blue-600 flex items-center gap-2">
-                <i data-lucide="calendar" class="w-6 h-6"></i> MeetingSync
+            <h1 class="text-lg font-black text-blue-600 flex items-center gap-2 cursor-pointer" onclick="window.location.href=window.location.pathname">
+                <i data-lucide="calendar" class="w-5 h-5"></i> MeetingSync
             </h1>
-            <div id="nav-user-info" class="hidden items-center gap-4">
-                <span id="display-user-name" class="text-sm font-bold text-slate-800"></span>
-                <button onclick="handleSave()" id="save-btn" class="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg active:scale-95 transition-all">
-                    儲存時間
+            <div id="nav-user-info" class="hidden flex items-center gap-3">
+                <div class="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
+                    <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                    <span id="display-user-name" class="text-xs font-bold text-slate-700"></span>
+                </div>
+                <button onclick="handleSave()" id="save-btn" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm transition-all">
+                    儲存
+                </button>
+                <button onclick="handleLogout()" class="text-slate-400 hover:text-red-500 p-1 transition-colors" title="登出">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
                 </button>
             </div>
         </div>
     </nav>
 
-    <main class="max-w-7xl mx-auto px-4 mt-10">
+    <main class="max-w-7xl mx-auto px-2 mt-6">
         <!-- 管理員界面 -->
-        <div id="view-admin" class="max-w-lg mx-auto bg-white rounded-[2rem] shadow-2xl p-10 border border-slate-200 hidden">
-            <div class="mb-8 text-center">
-                <div class="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-600">
-                    <i data-lucide="plus-circle" class="w-8 h-8"></i>
+        <div id="view-admin" class="max-w-md mx-auto bg-white rounded-3xl shadow-xl p-8 border border-slate-200 hidden">
+            <div class="mb-6 text-center">
+                <div class="bg-blue-50 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 text-blue-600">
+                    <i data-lucide="plus-circle" class="w-6 h-6"></i>
                 </div>
-                <h2 class="text-2xl font-black">發起會議</h2>
+                <h2 class="text-xl font-black">發起新會議</h2>
             </div>
-            <div class="space-y-5">
-                <input id="new-title" type="text" placeholder="例如：專案週會" class="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-100 outline-none shadow-sm">
-                <button onclick="handleCreateMeeting()" class="w-full bg-slate-900 text-white py-5 rounded-2xl font-bold hover:bg-slate-800 shadow-xl active:scale-95 transition-all">
+            <div class="space-y-4">
+                <input id="new-title" type="text" placeholder="例如：開發進度會議" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                <button onclick="handleCreateMeeting()" class="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold hover:bg-slate-800 transition-all text-sm">
                     生成調查連結
                 </button>
-                <div id="link-result" class="mt-8 p-6 bg-green-50 rounded-2xl border border-green-100 hidden">
-                    <div class="flex items-center gap-2 bg-white p-3 rounded-xl border border-green-200">
-                        <code id="generated-url" class="flex-1 text-xs truncate text-slate-600"></code>
-                        <button onclick="copyLink()" class="p-2.5 text-green-600 hover:bg-green-50 rounded-lg">
+                <div id="link-result" class="mt-6 p-4 bg-green-50 rounded-xl border border-green-100 hidden">
+                    <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-green-200">
+                        <code id="generated-url" class="flex-1 text-[10px] truncate text-slate-600"></code>
+                        <button onclick="copyLink()" class="p-2 text-green-600 hover:bg-green-50 rounded-md">
                             <i data-lucide="copy" class="w-4 h-4"></i>
                         </button>
                     </div>
@@ -68,45 +75,62 @@
         </div>
 
         <!-- 身份驗證界面 -->
-        <div id="view-auth" class="max-w-md mx-auto bg-white rounded-[2rem] shadow-2xl p-10 border border-slate-200 hidden">
-            <div class="text-center mb-10">
-                <div class="bg-indigo-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-indigo-600">
-                    <i data-lucide="log-in" class="w-8 h-8"></i>
+        <div id="view-auth" class="max-w-sm mx-auto bg-white rounded-3xl shadow-xl p-8 border border-slate-200 hidden">
+            <div class="text-center mb-8">
+                <div class="bg-indigo-50 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 text-indigo-600">
+                    <i data-lucide="log-in" class="w-6 h-6"></i>
                 </div>
-                <h2 id="auth-meeting-title" class="text-2xl font-black">載入中...</h2>
-                <p class="text-slate-500 text-sm mt-2">輸入姓名與密碼開始填寫</p>
+                <h2 id="auth-meeting-title" class="text-xl font-black italic">載入中...</h2>
+                <p class="text-slate-400 text-xs mt-1">請登入以編輯您的可用時間</p>
             </div>
-            <div class="space-y-5">
-                <input id="login-name" type="text" placeholder="姓名" class="w-full px-6 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-100 outline-none shadow-sm">
-                <input id="login-password" type="password" placeholder="密碼" class="w-full px-6 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-100 outline-none shadow-sm">
-                <button onclick="handleLogin()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-bold hover:bg-blue-700 shadow-xl active:scale-95 transition-all">
-                    進入填寫頁面
+            <div class="space-y-4">
+                <input id="login-name" type="text" placeholder="您的姓名" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                <input id="login-password" type="password" placeholder="簡易密碼 (保護您的資料)" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                <button onclick="handleLogin()" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition-all text-sm shadow-lg shadow-blue-100">
+                    進入系統
                 </button>
             </div>
         </div>
 
         <!-- 調查主界面 -->
-        <div id="view-survey" class="space-y-10 hidden animate-in fade-in duration-700">
-            <div class="text-center">
-                <h2 id="survey-title" class="text-4xl font-black">會議主題</h2>
-                <p class="text-slate-500 mt-4 italic">左側框選您的時間，右側滑鼠懸停查看「誰有空」</p>
-            </div>
-            <div class="grid xl:grid-cols-2 gap-10">
-                <!-- 個人填寫 -->
-                <div class="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
-                    <div class="p-5 bg-blue-600 text-white flex justify-between items-center">
-                        <h3 class="font-bold flex items-center gap-2"><i data-lucide="user" class="w-4 h-4"></i> 您的時間</h3>
-                        <span class="text-[10px] bg-white/20 px-2 py-1 rounded">滑鼠框選</span>
-                    </div>
-                    <div id="my-calendar" class="calendar-grid no-select" oncontextmenu="return false;"></div>
+        <div id="view-survey" class="space-y-6 hidden animate-in fade-in duration-500">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div>
+                    <h2 id="survey-title" class="text-xl font-black">會議主題</h2>
+                    <p class="text-slate-400 text-xs mt-0.5 italic">選取您的時段，綠色表示團隊共同有空</p>
                 </div>
-                <!-- 團隊統計 -->
-                <div class="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
-                    <div class="p-5 bg-slate-800 text-white flex justify-between items-center">
-                        <h3 class="font-bold flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> 團隊統計 <span id="participant-count" class="ml-1 text-slate-400"></span></h3>
-                        <span class="text-[10px] bg-slate-700 px-2 py-1 rounded">懸停看姓名</span>
+                <!-- 週次切換按鈕 -->
+                <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+                    <button onclick="changeWeek(-1)" class="p-2 hover:bg-white rounded-lg transition-all text-slate-600 hover:text-blue-600 shadow-sm">
+                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                    </button>
+                    <span id="week-display" class="text-xs font-bold px-4 text-slate-700 min-w-[120px] text-center">本週</span>
+                    <button onclick="changeWeek(1)" class="p-2 hover:bg-white rounded-lg transition-all text-slate-600 hover:text-blue-600 shadow-sm">
+                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-6">
+                <!-- 個人填寫 (尺寸縮小) -->
+                <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                    <div class="px-4 py-3 bg-blue-600 text-white flex justify-between items-center">
+                        <h3 class="text-sm font-bold flex items-center gap-2"><i data-lucide="mouse-pointer-2" class="w-4 h-4"></i> 您的時間狀態</h3>
+                        <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded">點擊或拖拉</span>
                     </div>
-                    <div id="team-calendar" class="calendar-grid no-select"></div>
+                    <div class="overflow-x-auto custom-scroll">
+                        <div id="my-calendar" class="calendar-grid no-select" oncontextmenu="return false;"></div>
+                    </div>
+                </div>
+                <!-- 團隊統計 (尺寸縮小) -->
+                <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                    <div class="px-4 py-3 bg-slate-800 text-white flex justify-between items-center">
+                        <h3 class="text-sm font-bold flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> 團隊空檔統計 <span id="participant-count" class="ml-1 text-slate-400"></span></h3>
+                        <span class="text-[10px] bg-slate-700 px-2 py-0.5 rounded">懸停看姓名</span>
+                    </div>
+                    <div class="overflow-x-auto custom-scroll">
+                        <div id="team-calendar" class="calendar-grid no-select"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -123,22 +147,28 @@
             groupData: {},
             totalParticipants: 0,
             isDragging: false,
-            dragMode: true
+            dragMode: true,
+            currentWeekOffset: 0 // 0 表示本週 (今天開始)
         };
 
-        const hours = Array.from({ length: 16 }, (_, i) => i + 6);
+        const hours = Array.from({ length: 16 }, (_, i) => i + 7); // 改為 07:00 - 22:00 較符合工作需求
         const daysShort = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
         
+        // 取得動態日期：從今天開始往後推 7 天，並根據 offset 切換週
         const getWeekDates = () => {
-            const now = new Date();
-            const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-            return Array.from({ length: 7 }, (_, i) => {
-                const d = new Date(startOfWeek);
-                d.setDate(d.getDate() + i);
-                return d.toISOString().split('T')[0];
-            });
+            const dates = [];
+            const today = new Date();
+            // offset 以 7 天為一單位
+            const startDate = new Date(today);
+            startDate.setDate(today.getDate() + (state.currentWeekOffset * 7));
+
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(startDate);
+                d.setDate(startDate.getDate() + i);
+                dates.push(d.toISOString().split('T')[0]);
+            }
+            return dates;
         };
-        const weekDates = getWeekDates();
 
         window.onload = async () => {
             lucide.createIcons();
@@ -178,16 +208,21 @@
         }
 
         async function handleLogin() {
-            state.userName = document.getElementById('login-name').value;
-            state.password = document.getElementById('login-password').value;
+            state.userName = document.getElementById('login-name').value.trim();
+            state.password = document.getElementById('login-password').value.trim();
             if (!state.userName || !state.password) return alert("請填寫姓名與密碼");
 
             const res = await callAPI({ action: 'getAllResponses', meetingId });
             if (res?.responses) {
                 const myRecord = res.responses.find(r => r.name === state.userName);
                 if (myRecord) {
-                    if (myRecord.password !== state.password) return alert("姓名已被登記，密碼錯誤");
-                    state.mySlots = JSON.parse(myRecord.slots);
+                    // 強化密碼比對邏輯，避免空格影響
+                    if (String(myRecord.password).trim() !== state.password) {
+                        return alert("此姓名已被登記，但密碼錯誤。請重新輸入或更換姓名。");
+                    }
+                    try {
+                        state.mySlots = JSON.parse(myRecord.slots);
+                    } catch(e) { state.mySlots = {}; }
                 }
                 processGroupData(res.responses);
                 renderCalendars();
@@ -196,6 +231,26 @@
                 document.getElementById('nav-user-info').classList.remove('hidden');
                 showView('view-survey');
             }
+        }
+
+        function handleLogout() {
+            if(!confirm("確定要登出嗎？")) return;
+            state.userName = '';
+            state.password = '';
+            state.mySlots = {};
+            document.getElementById('nav-user-info').classList.add('hidden');
+            showView('view-auth');
+        }
+
+        function changeWeek(direction) {
+            state.currentWeekOffset += direction;
+            const weekDisplay = document.getElementById('week-display');
+            if (state.currentWeekOffset === 0) weekDisplay.innerText = "本週 (今日起)";
+            else if (state.currentWeekOffset === 1) weekDisplay.innerText = "下一週";
+            else if (state.currentWeekOffset === -1) weekDisplay.innerText = "上一週";
+            else weekDisplay.innerText = `${state.currentWeekOffset > 0 ? '未來' : '過去'}第 ${Math.abs(state.currentWeekOffset)} 週`;
+            
+            renderCalendars();
         }
 
         function processGroupData(responses) {
@@ -212,12 +267,11 @@
                     });
                 } catch(e) {}
             });
-            document.getElementById('participant-count').innerText = `(共 ${state.totalParticipants} 人)`;
+            document.getElementById('participant-count').innerText = `(${state.totalParticipants} 人已填)`;
         }
 
         async function handleSave() {
             const btn = document.getElementById('save-btn');
-            const originalText = btn.innerText;
             btn.disabled = true;
             btn.innerText = "儲存中...";
             const res = await callAPI({
@@ -228,23 +282,21 @@
                 slots: JSON.stringify(state.mySlots)
             });
             if (res && !res.error) {
-                alert("儲存成功");
+                alert("已成功儲存！");
                 const fresh = await callAPI({ action: 'getAllResponses', meetingId });
                 processGroupData(fresh.responses);
                 renderCalendars();
+            } else {
+                alert(res?.error || "儲存失敗，請檢查網路連接");
             }
             btn.disabled = false;
-            btn.innerText = originalText;
+            btn.innerText = "儲存";
         }
 
-        // 修改選取邏輯：不重繪整個日曆，只切換類別
         function toggleSlot(key, el) {
             state.mySlots[key] = state.dragMode;
-            if (state.dragMode) {
-                el.classList.add('slot-active');
-            } else {
-                el.classList.remove('slot-active');
-            }
+            if (state.dragMode) el.classList.add('slot-active');
+            else el.classList.remove('slot-active');
         }
 
         function renderCalendars() {
@@ -253,13 +305,17 @@
             myContainer.innerHTML = '';
             teamContainer.innerHTML = '';
 
+            const currentWeekDates = getWeekDates();
+
             [myContainer, teamContainer].forEach(c => {
-                c.innerHTML += '<div class="w-16 border-r border-slate-200 bg-slate-50"></div>';
-                weekDates.forEach((date, i) => {
+                c.innerHTML += '<div class="w-[50px] border-r border-slate-200 bg-slate-50 sticky left-0 z-20"></div>';
+                currentWeekDates.forEach((dateStr) => {
+                    const dateObj = new Date(dateStr);
+                    const isToday = new Date().toISOString().split('T')[0] === dateStr;
                     c.innerHTML += `
-                        <div class="text-center py-2 border-r border-slate-200 bg-slate-50">
-                            <div class="text-[10px] text-slate-500 uppercase">${daysShort[i]}</div>
-                            <div class="text-xs font-bold">${date.split('-').slice(1).join('/')}</div>
+                        <div class="text-center py-2 border-r border-slate-100 bg-slate-50 ${isToday ? 'ring-1 ring-inset ring-blue-500 bg-blue-50' : ''}">
+                            <div class="text-[9px] text-slate-400 font-bold uppercase">${daysShort[dateObj.getDay()]}</div>
+                            <div class="text-[11px] font-black ${isToday ? 'text-blue-600' : 'text-slate-700'}">${dateStr.split('-').slice(1).join('/')}</div>
                         </div>`;
                 });
             });
@@ -268,35 +324,29 @@
                 [myContainer, teamContainer].forEach(c => {
                     const isMy = c.id === 'my-calendar';
                     const timeLabel = document.createElement('div');
-                    timeLabel.className = "w-16 h-10 text-[10px] text-slate-400 flex items-center justify-center border-r border-slate-200 bg-slate-50 font-mono border-b border-slate-100";
+                    timeLabel.className = "w-[50px] h-8 text-[9px] text-slate-400 flex items-center justify-center border-r border-slate-200 bg-slate-50 font-mono border-b border-slate-100 sticky left-0 z-20";
                     timeLabel.innerText = `${String(hour).padStart(2, '0')}:00`;
                     c.appendChild(timeLabel);
                     
-                    weekDates.forEach(date => {
+                    currentWeekDates.forEach(date => {
                         const key = `${date}-${hour}`;
                         const el = document.createElement('div');
                         if (isMy) {
                             const active = state.mySlots[key];
-                            el.className = `border-r border-b border-slate-100 cursor-pointer transition-colors slot-hover ${active ? 'slot-active' : ''}`;
-                            el.dataset.key = key;
-                            
+                            el.className = `h-8 border-r border-b border-slate-50 cursor-pointer transition-colors slot-hover ${active ? 'slot-active' : ''}`;
                             el.onmousedown = (e) => {
                                 e.preventDefault();
                                 state.dragMode = !state.mySlots[key];
                                 state.isDragging = true;
                                 toggleSlot(key, el);
                             };
-                            el.onmouseenter = () => {
-                                if (state.isDragging) {
-                                    toggleSlot(key, el);
-                                }
-                            };
+                            el.onmouseenter = () => { if (state.isDragging) toggleSlot(key, el); };
                             c.appendChild(el);
                         } else {
                             const names = state.groupData[key] || [];
                             const count = names.length;
                             const intensity = state.totalParticipants > 0 ? (count / state.totalParticipants) : 0;
-                            el.className = `border-r border-b border-slate-100 flex items-center justify-center text-[10px] text-white font-bold`;
+                            el.className = `h-8 border-r border-b border-slate-50 flex items-center justify-center text-[10px] text-white font-bold`;
                             if (count > 0) {
                                 el.style.backgroundColor = `rgba(34, 197, 94, ${0.2 + intensity * 0.8})`;
                                 el.innerText = count;
@@ -314,14 +364,12 @@
             const tt = document.getElementById('tooltip');
             const nameContainer = document.getElementById('tooltip-names');
             nameContainer.innerHTML = names.map(n => `<span class="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">${n}</span>`).join('');
-            tt.style.left = (e.clientX + 15) + 'px';
-            tt.style.top = (e.clientY + 15) + 'px';
+            tt.style.left = (e.clientX + 10) + 'px';
+            tt.style.top = (e.clientY + 10) + 'px';
             tt.classList.remove('hidden');
         }
 
-        function hideTooltip() {
-            document.getElementById('tooltip').classList.add('hidden');
-        }
+        function hideTooltip() { document.getElementById('tooltip').classList.add('hidden'); }
 
         function copyLink() {
             const url = document.getElementById('generated-url').innerText;
@@ -331,10 +379,9 @@
             temp.select();
             document.execCommand('copy');
             document.body.removeChild(temp);
-            alert("已複製連結");
+            alert("連結已複製到剪貼簿");
         }
 
-        // 全域放開滑鼠事件，確保結束選取
         window.onmouseup = () => { state.isDragging = false; };
     </script>
 </body>
