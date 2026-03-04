@@ -1,89 +1,337 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <meta charset="UTF-8">
-</head>
-<body class="bg-slate-50 p-4 md:p-10">
+import React, { useState, useEffect, useCallback } from 'react';
+import { Calendar, Users, Lock, User, Copy, Save, Info, PlusCircle, LogIn, CheckCircle } from 'lucide-react';
 
-  <div id="app" class="max-w-2xl mx-auto">
-    <div id="loading" class="text-center py-20 text-gray-400">載入中...</div>
+const App = () => {
+  const [meetingId, setMeetingId] = useState(new URLSearchParams(window.location.search).get('id'));
+  const [view, setView] = useState(meetingId ? 'auth' : 'admin');
+  const [loading, setLoading] = useState(false);
+  
+  // 管理員狀態
+  const [newTitle, setNewTitle] = useState('');
+  const [generatedLink, setGeneratedLink] = useState('');
 
-    <div id="adminView" class="hidden space-y-6">
-      <div class="bg-white p-8 rounded-2xl shadow-sm border">
-        <h1 class="text-2xl font-bold mb-4">🆕 建立新會議</h1>
-        <input id="newTitle" type="text" placeholder="會議名稱 (如：專案進度)" class="w-full p-3 border rounded-xl mb-4">
-        <button onclick="createMeeting()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">生成連結</button>
-        <div id="linkOutput" class="mt-4 p-3 bg-blue-50 text-blue-700 rounded-lg break-all hidden"></div>
-      </div>
-    </div>
+  // 參與者狀態
+  const [userName, setUserName] = useState('');
+  const [password, setPassword] = useState('');
+  const [meetingTitle, setMeetingTitle] = useState('');
+  
+  // 時間選擇狀態
+  const [mySlots, setMySlots] = useState({});
+  const [groupData, setGroupData] = useState({}); 
+  const [totalParticipants, setTotalParticipants] = useState(0);
 
-    <div id="surveyView" class="hidden space-y-6">
-      <div class="bg-white p-8 rounded-2xl shadow-sm border">
-        <h1 id="meetingTitle" class="text-2xl font-bold mb-2">載入中...</h1>
-        <p class="text-gray-500 mb-6 text-sm">請輸入姓名並選擇您有空的時間</p>
-        
-        <input id="userName" type="text" placeholder="您的姓名" class="w-full p-3 border rounded-xl mb-6">
-        
-        <div class="grid grid-cols-3 gap-2" id="timeSlots">
-          </div>
+  // 拖拉狀態
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragMode, setDragMode] = useState(true);
 
-        <button onclick="submitTime()" class="w-full mt-8 bg-green-600 text-white py-3 rounded-xl font-bold">送出有空時間</button>
-      </div>
-    </div>
-  </div>
+  // 氣泡提示狀態
+  const [tooltip, setTooltip] = useState({ show: false, x: 0, y: 0, names: [] });
 
-  <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbxogvFVUYKbBaHqzXWFO714dhcEmjgt1r9IkwUeNtUxwYlW4eYs0IrQEVdLp7zBb_yn/exec'; // 貼上剛剛部署的 URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const meetingId = urlParams.get('id');
+  // 已自動替換為您的網頁應用程式 URL
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxogvFVUYKbBaHqzXWFO714dhcEmjgt1r9IkwUeNtUxwYlW4eYs0IrQEVdLp7zBb_yn/exec'; 
 
-    // 初始判斷
-    window.onload = async () => {
-      document.getElementById('loading').classList.add('hidden');
-      if (meetingId) {
-        document.getElementById('surveyView').classList.remove('hidden');
-        loadMeetingInfo();
-        renderSlots();
-      } else {
-        document.getElementById('adminView').classList.remove('hidden');
+  const hours = Array.from({ length: 16 }, (_, i) => i + 6); // 06:00 - 21:00
+  const daysShort = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+
+  const getWeekDays = useCallback(() => {
+    const now = new Date();
+    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(startOfWeek);
+      d.setDate(d.getDate() + i);
+      return d.toISOString().split('T')[0];
+    });
+  }, []);
+
+  const weekDates = getWeekDays();
+
+  useEffect(() => {
+    if (meetingId) {
+      fetchMeetingInfo();
+    }
+  }, [meetingId]);
+
+  const callAPI = async (data) => {
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+      return await response.json();
+    } catch (e) {
+      console.error("API Error:", e);
+      return null;
+    }
+  };
+
+  const fetchMeetingInfo = async () => {
+    setLoading(true);
+    const res = await callAPI({ action: 'getMeetingInfo', meetingId });
+    if (res && res.title) {
+      setMeetingTitle(res.title);
+    } else {
+      setMeetingTitle("讀取會議資訊中...");
+    }
+    setLoading(false);
+  };
+
+  const handleCreateMeeting = async () => {
+    if (!newTitle) return alert("請輸入會議主題");
+    setLoading(true);
+    const res = await callAPI({ action: 'createMeeting', title: newTitle });
+    if (res && res.meetingId) {
+      const link = `${window.location.origin}${window.location.pathname}?id=${res.meetingId}`;
+      setGeneratedLink(link);
+    } else {
+      alert("建立失敗，請檢查 GAS 部署權限");
+    }
+    setLoading(false);
+  };
+
+  const handleLogin = async () => {
+    if (!userName || !password) return alert("請輸入姓名與密碼");
+    setLoading(true);
+    
+    const res = await callAPI({ action: 'getAllResponses', meetingId });
+    if (res && res.responses) {
+      const allResponses = res.responses;
+      const myRecord = allResponses.find(r => r.name === userName);
+      
+      if (myRecord) {
+        if (myRecord.password !== password) {
+          alert("此姓名已被登記，請輸入正確密碼或更換姓名。");
+          setLoading(false);
+          return;
+        }
+        setMySlots(JSON.parse(myRecord.slots));
       }
-    };
 
-    // 建立會議
-    async function createMeeting() {
-      const title = document.getElementById('newTitle').value;
-      const resp = await fetch(API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'create', title: title })
+      const heatmapNames = {};
+      allResponses.forEach(r => {
+        const slots = JSON.parse(r.slots);
+        Object.keys(slots).forEach(s => {
+          if (slots[s]) {
+            if (!heatmapNames[s]) heatmapNames[s] = [];
+            heatmapNames[s].push(r.name);
+          }
+        });
       });
-      const id = await resp.text();
-      const fullUrl = window.location.href + '?id=' + id;
-      document.getElementById('linkOutput').innerText = "分享連結: " + fullUrl;
-      document.getElementById('linkOutput').classList.remove('hidden');
+      setGroupData(heatmapNames);
+      setTotalParticipants(allResponses.length);
+      setView('survey');
+    } else {
+      alert("資料同步失敗，請稍後再試");
     }
+    setLoading(false);
+  };
 
-    // 渲染時間格子 (簡單範例：週一至週五)
-    function renderSlots() {
-      const container = document.getElementById('timeSlots');
-      const days = ['週一', '週二', '週三', '週四', '週五'];
-      days.forEach(day => {
-        const btn = document.createElement('button');
-        btn.innerText = day;
-        btn.className = "p-4 border rounded-xl hover:bg-blue-100 transition-colors";
-        btn.onclick = () => btn.classList.toggle('bg-blue-500 text-white');
-        container.appendChild(btn);
-      });
+  const handleSave = async () => {
+    setLoading(true);
+    const res = await callAPI({
+      action: 'saveResponse',
+      meetingId,
+      name: userName,
+      password,
+      slots: JSON.stringify(mySlots)
+    });
+    
+    if (res && (res.status === "success" || !res.error)) {
+      alert("儲存成功！");
+      const freshData = await callAPI({ action: 'getAllResponses', meetingId });
+      if (freshData && freshData.responses) {
+        const heatmapNames = {};
+        freshData.responses.forEach(r => {
+          const slots = JSON.parse(r.slots);
+          Object.keys(slots).forEach(s => {
+            if (slots[s]) {
+              if (!heatmapNames[s]) heatmapNames[s] = [];
+              heatmapNames[s].push(r.name);
+            }
+          });
+        });
+        setGroupData(heatmapNames);
+        setTotalParticipants(freshData.responses.length);
+      }
+    } else {
+      alert(res?.error || "儲存失敗");
     }
+    setLoading(false);
+  };
 
-    // 載入會議名稱
-    async function loadMeetingInfo() {
-      const resp = await fetch(API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'getInfo', id: meetingId })
-      });
-      document.getElementById('meetingTitle').innerText = await resp.text();
+  const handleMouseDown = (key) => {
+    const newState = !mySlots[key];
+    setDragMode(newState);
+    setIsDragging(true);
+    setMySlots(prev => ({ ...prev, [key]: newState }));
+  };
+
+  const handleMouseEnterGrid = (key) => {
+    if (isDragging) {
+      setMySlots(prev => ({ ...prev, [key]: dragMode }));
     }
-  </script>
-</body>
-</html>
+  };
+
+  const CalendarGrid = ({ isInteractive, data, participantsCount }) => (
+    <div className="overflow-x-auto select-none relative bg-white" onMouseLeave={() => setIsDragging(false)} onMouseUp={() => setIsDragging(false)}>
+      <div className="min-w-[650px]">
+        <div className="flex border-b border-slate-200 sticky top-0 bg-slate-50 z-10">
+          <div className="w-16 border-r border-slate-200"></div>
+          {weekDates.map((date, i) => (
+            <div key={date} className="flex-1 text-center py-2 border-r border-slate-200">
+              <div className="text-[10px] text-slate-500 uppercase">{daysShort[i]}</div>
+              <div className="text-sm font-bold text-slate-800">{date.split('-').slice(1).join('/')}</div>
+            </div>
+          ))}
+        </div>
+        
+        {hours.map(hour => (
+          <div key={hour} className="flex border-b border-slate-100 h-10">
+            <div className="w-16 text-[10px] text-slate-400 flex items-center justify-center border-r border-slate-200 bg-slate-50 font-mono">
+              {String(hour).padStart(2, '0')}:00
+            </div>
+            {weekDates.map(date => {
+              const key = `${date}-${hour}`;
+              const names = data[key] || [];
+              const count = names.length;
+              const intensity = participantsCount > 0 ? (count / participantsCount) : 0;
+              
+              if (isInteractive) {
+                return (
+                  <div 
+                    key={key}
+                    onMouseDown={() => handleMouseDown(key)}
+                    onMouseEnter={() => handleMouseEnterGrid(key)}
+                    className={`flex-1 border-r border-slate-100 cursor-pointer transition-colors ${mySlots[key] ? 'bg-blue-500' : 'hover:bg-blue-50'}`}
+                  ></div>
+                );
+              } else {
+                return (
+                  <div 
+                    key={key}
+                    onMouseEnter={(e) => count > 0 && setTooltip({ show: true, x: e.clientX, y: e.clientY, names })}
+                    onMouseLeave={() => setTooltip({ ...tooltip, show: false })}
+                    style={{ backgroundColor: count > 0 ? `rgba(34, 197, 94, ${0.2 + intensity * 0.8})` : 'transparent' }}
+                    className="flex-1 border-r border-slate-100 flex items-center justify-center text-[10px] text-white font-bold"
+                  >
+                    {count > 0 && count}
+                  </div>
+                );
+              }
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-900 pb-20 font-sans">
+      {tooltip.show && (
+        <div 
+          className="fixed z-[9999] pointer-events-none bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-2xl border border-slate-700"
+          style={{ left: tooltip.x + 15, top: tooltip.y + 15 }}
+        >
+          <p className="font-bold border-b border-slate-700 pb-1 mb-1.5 flex items-center gap-1.5 text-green-400">
+            <Users className="w-3 h-3" /> 有空的人：
+          </p>
+          <div className="flex flex-wrap gap-1 max-w-[180px]">
+            {tooltip.names.map((n, idx) => (
+              <span key={idx} className="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">{n}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <nav className="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <h1 className="text-xl font-black text-blue-600 flex items-center gap-2">
+            <Calendar className="w-6 h-6" /> MeetingSync
+          </h1>
+          {view === 'survey' && (
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-bold text-slate-800">{userName}</span>
+              <button onClick={handleSave} disabled={loading} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg active:scale-95 disabled:opacity-50">
+                <Save className="w-4 h-4 mr-1" /> {loading ? "儲存中" : "儲存時間"}
+              </button>
+            </div>
+          )}
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-4 mt-10">
+        {view === 'admin' && (
+          <div className="max-w-lg mx-auto bg-white rounded-[2rem] shadow-2xl p-10 border border-slate-200">
+            <div className="mb-8 text-center">
+              <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-600">
+                <PlusCircle className="w-8 h-8" />
+              </div>
+              <h2 className="text-2xl font-black">發起會議</h2>
+            </div>
+            <div className="space-y-5">
+              <input 
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                type="text" 
+                placeholder="例如：專案週會" 
+                className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm"
+              />
+              <button onClick={handleCreateMeeting} disabled={loading} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-bold hover:bg-slate-800 shadow-xl active:scale-95">
+                {loading ? "處理中..." : "生成調查連結"}
+              </button>
+              {generatedLink && (
+                <div className="mt-8 p-6 bg-green-50 rounded-2xl border border-green-100">
+                  <div className="flex items-center gap-2 bg-white p-3 rounded-xl border border-green-200">
+                    <code className="flex-1 text-xs truncate text-slate-600">{generatedLink}</code>
+                    <button onClick={() => {navigator.clipboard.writeText(generatedLink); alert("複製成功");}} className="p-2.5 text-green-600 hover:bg-green-50 rounded-lg">
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {view === 'auth' && (
+          <div className="max-w-md mx-auto bg-white rounded-[2rem] shadow-2xl p-10 border border-slate-200">
+            <div className="text-center mb-10">
+              <div className="bg-indigo-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-indigo-600">
+                <LogIn className="w-8 h-8" />
+              </div>
+              <h2 className="text-2xl font-black">{meetingTitle || "會議載入中..."}</h2>
+              <p className="text-slate-500 text-sm mt-2">輸入姓名與密碼開始填寫</p>
+            </div>
+            <div className="space-y-5">
+              <input value={userName} onChange={(e) => setUserName(e.target.value)} type="text" placeholder="姓名" className="w-full px-6 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-100 outline-none shadow-sm"/>
+              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="密碼" className="w-full px-6 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-100 outline-none shadow-sm"/>
+              <button onClick={handleLogin} disabled={loading} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-bold hover:bg-blue-700 shadow-xl shadow-blue-200 active:scale-95">
+                {loading ? "進入中..." : "進入填寫頁面"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {view === 'survey' && (
+          <div className="space-y-10 animate-in fade-in duration-700">
+            <div className="text-center">
+              <h2 className="text-4xl font-black">{meetingTitle}</h2>
+              <p className="text-slate-500 mt-4">左側框選時間，右側查看誰有空</p>
+            </div>
+            <div className="grid xl:grid-cols-2 gap-10">
+              <div className="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
+                <div className="p-5 bg-blue-600 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><User className="w-4 h-4" /> 您的時間</h3><span className="text-[10px] bg-white/20 px-2 py-1 rounded">滑鼠框選</span></div>
+                <CalendarGrid isInteractive={true} data={mySlots} />
+              </div>
+              <div className="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
+                <div className="p-5 bg-slate-800 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><Users className="w-4 h-4" /> 團隊熱點 (共 {totalParticipants} 人)</h3><span className="text-[10px] bg-slate-700 px-2 py-1 rounded">懸停看姓名</span></div>
+                <CalendarGrid isInteractive={false} data={groupData} participantsCount={totalParticipants} />
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default App;
