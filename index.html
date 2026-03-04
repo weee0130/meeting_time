@@ -12,6 +12,9 @@
         .no-select { user-select: none; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .calendar-grid { display: grid; grid-template-columns: 64px repeat(7, 1fr); }
+        /* 優化選取中格子的過渡效果 */
+        .slot-active { background-color: #3b82f6 !important; }
+        .slot-hover:hover { background-color: #eff6ff; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-900 min-h-screen pb-20">
@@ -95,7 +98,7 @@
                         <h3 class="font-bold flex items-center gap-2"><i data-lucide="user" class="w-4 h-4"></i> 您的時間</h3>
                         <span class="text-[10px] bg-white/20 px-2 py-1 rounded">滑鼠框選</span>
                     </div>
-                    <div id="my-calendar" class="calendar-grid no-select"></div>
+                    <div id="my-calendar" class="calendar-grid no-select" oncontextmenu="return false;"></div>
                 </div>
                 <!-- 團隊統計 -->
                 <div class="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
@@ -126,7 +129,6 @@
         const hours = Array.from({ length: 16 }, (_, i) => i + 6);
         const daysShort = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
         
-        // 取得本週日期
         const getWeekDates = () => {
             const now = new Date();
             const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
@@ -138,7 +140,6 @@
         };
         const weekDates = getWeekDates();
 
-        // 初始化
         window.onload = async () => {
             lucide.createIcons();
             if (meetingId) {
@@ -201,19 +202,22 @@
             state.groupData = {};
             state.totalParticipants = responses.length;
             responses.forEach(r => {
-                const slots = JSON.parse(r.slots);
-                Object.keys(slots).forEach(s => {
-                    if (slots[s]) {
-                        if (!state.groupData[s]) state.groupData[s] = [];
-                        state.groupData[s].push(r.name);
-                    }
-                });
+                try {
+                    const slots = JSON.parse(r.slots);
+                    Object.keys(slots).forEach(s => {
+                        if (slots[s]) {
+                            if (!state.groupData[s]) state.groupData[s] = [];
+                            state.groupData[s].push(r.name);
+                        }
+                    });
+                } catch(e) {}
             });
             document.getElementById('participant-count').innerText = `(共 ${state.totalParticipants} 人)`;
         }
 
         async function handleSave() {
             const btn = document.getElementById('save-btn');
+            const originalText = btn.innerText;
             btn.disabled = true;
             btn.innerText = "儲存中...";
             const res = await callAPI({
@@ -230,7 +234,17 @@
                 renderCalendars();
             }
             btn.disabled = false;
-            btn.innerText = "儲存時間";
+            btn.innerText = originalText;
+        }
+
+        // 修改選取邏輯：不重繪整個日曆，只切換類別
+        function toggleSlot(key, el) {
+            state.mySlots[key] = state.dragMode;
+            if (state.dragMode) {
+                el.classList.add('slot-active');
+            } else {
+                el.classList.remove('slot-active');
+            }
         }
 
         function renderCalendars() {
@@ -239,7 +253,6 @@
             myContainer.innerHTML = '';
             teamContainer.innerHTML = '';
 
-            // Render Headers
             [myContainer, teamContainer].forEach(c => {
                 c.innerHTML += '<div class="w-16 border-r border-slate-200 bg-slate-50"></div>';
                 weekDates.forEach((date, i) => {
@@ -251,31 +264,31 @@
                 });
             });
 
-            // Render Slots
             hours.forEach(hour => {
                 [myContainer, teamContainer].forEach(c => {
                     const isMy = c.id === 'my-calendar';
-                    c.innerHTML += `
-                        <div class="w-16 h-10 text-[10px] text-slate-400 flex items-center justify-center border-r border-slate-200 bg-slate-50 font-mono border-b border-slate-100">
-                            ${String(hour).padStart(2, '0')}:00
-                        </div>`;
+                    const timeLabel = document.createElement('div');
+                    timeLabel.className = "w-16 h-10 text-[10px] text-slate-400 flex items-center justify-center border-r border-slate-200 bg-slate-50 font-mono border-b border-slate-100";
+                    timeLabel.innerText = `${String(hour).padStart(2, '0')}:00`;
+                    c.appendChild(timeLabel);
                     
                     weekDates.forEach(date => {
                         const key = `${date}-${hour}`;
+                        const el = document.createElement('div');
                         if (isMy) {
                             const active = state.mySlots[key];
-                            const el = document.createElement('div');
-                            el.className = `border-r border-b border-slate-100 cursor-pointer transition-colors ${active ? 'bg-blue-500' : 'hover:bg-blue-50'}`;
-                            el.onmousedown = () => {
+                            el.className = `border-r border-b border-slate-100 cursor-pointer transition-colors slot-hover ${active ? 'slot-active' : ''}`;
+                            el.dataset.key = key;
+                            
+                            el.onmousedown = (e) => {
+                                e.preventDefault();
                                 state.dragMode = !state.mySlots[key];
                                 state.isDragging = true;
-                                state.mySlots[key] = state.dragMode;
-                                renderCalendars();
+                                toggleSlot(key, el);
                             };
                             el.onmouseenter = () => {
                                 if (state.isDragging) {
-                                    state.mySlots[key] = state.dragMode;
-                                    renderCalendars();
+                                    toggleSlot(key, el);
                                 }
                             };
                             c.appendChild(el);
@@ -283,7 +296,6 @@
                             const names = state.groupData[key] || [];
                             const count = names.length;
                             const intensity = state.totalParticipants > 0 ? (count / state.totalParticipants) : 0;
-                            const el = document.createElement('div');
                             el.className = `border-r border-b border-slate-100 flex items-center justify-center text-[10px] text-white font-bold`;
                             if (count > 0) {
                                 el.style.backgroundColor = `rgba(34, 197, 94, ${0.2 + intensity * 0.8})`;
@@ -322,6 +334,7 @@
             alert("已複製連結");
         }
 
+        // 全域放開滑鼠事件，確保結束選取
         window.onmouseup = () => { state.isDragging = false; };
     </script>
 </body>
