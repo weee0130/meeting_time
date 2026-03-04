@@ -13,14 +13,12 @@
         .calendar-grid { display: grid; grid-template-columns: 50px repeat(7, 1fr); }
         .slot-active { background-color: #3b82f6 !important; }
         .slot-hover:hover { background-color: #eff6ff; }
-        /* 縮小捲軸 */
         .custom-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-900 min-h-screen pb-10">
 
-    <!-- Tooltip 氣泡 -->
     <div id="tooltip" class="fixed z-[9999] pointer-events-none bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-2xl border border-slate-700 hidden">
         <p class="font-bold border-b border-slate-700 pb-1 mb-1.5 flex items-center gap-1.5 text-green-400">
             <i data-lucide="users" class="w-3 h-3"></i> 有空的人：
@@ -28,10 +26,9 @@
         <div id="tooltip-names" class="flex flex-wrap gap-1 max-w-[180px]"></div>
     </div>
 
-    <!-- 導航欄 (尺寸縮小) -->
     <nav class="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-4 py-2">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <h1 class="text-lg font-black text-blue-600 flex items-center gap-2 cursor-pointer" onclick="window.location.href=window.location.pathname">
+            <h1 class="text-lg font-black text-blue-600 flex items-center gap-2 cursor-pointer" onclick="window.location.reload()">
                 <i data-lucide="calendar" class="w-5 h-5"></i> MeetingSync
             </h1>
             <div id="nav-user-info" class="hidden flex items-center gap-3">
@@ -40,7 +37,7 @@
                     <span id="display-user-name" class="text-xs font-bold text-slate-700"></span>
                 </div>
                 <button onclick="handleSave()" id="save-btn" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm transition-all">
-                    儲存
+                    儲存修改
                 </button>
                 <button onclick="handleLogout()" class="text-slate-400 hover:text-red-500 p-1 transition-colors" title="登出">
                     <i data-lucide="log-out" class="w-4 h-4"></i>
@@ -50,7 +47,6 @@
     </nav>
 
     <main class="max-w-7xl mx-auto px-2 mt-6">
-        <!-- 管理員界面 -->
         <div id="view-admin" class="max-w-md mx-auto bg-white rounded-3xl shadow-xl p-8 border border-slate-200 hidden">
             <div class="mb-6 text-center">
                 <div class="bg-blue-50 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 text-blue-600">
@@ -74,45 +70,41 @@
             </div>
         </div>
 
-        <!-- 身份驗證界面 -->
         <div id="view-auth" class="max-w-sm mx-auto bg-white rounded-3xl shadow-xl p-8 border border-slate-200 hidden">
             <div class="text-center mb-8">
                 <div class="bg-indigo-50 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 text-indigo-600">
                     <i data-lucide="log-in" class="w-6 h-6"></i>
                 </div>
                 <h2 id="auth-meeting-title" class="text-xl font-black italic">載入中...</h2>
-                <p class="text-slate-400 text-xs mt-1">請登入以編輯您的可用時間</p>
+                <p class="text-slate-400 text-xs mt-1">請登入以填寫或修改時間</p>
             </div>
             <div class="space-y-4">
                 <input id="login-name" type="text" placeholder="您的姓名" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
-                <input id="login-password" type="password" placeholder="簡易密碼 (保護您的資料)" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                <input id="login-password" type="password" placeholder="簡易密碼 (修改資料用)" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
                 <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition-all text-sm shadow-lg shadow-blue-100">
                     進入系統
                 </button>
             </div>
         </div>
 
-        <!-- 調查主界面 -->
         <div id="view-survey" class="space-y-6 hidden animate-in fade-in duration-500">
             <div class="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                 <div>
                     <h2 id="survey-title" class="text-xl font-black">會議主題</h2>
-                    <p class="text-slate-400 text-xs mt-0.5 italic">選取您的時段，綠色表示團隊共同有空</p>
+                    <p class="text-slate-400 text-xs mt-0.5 italic">選取您的時段，然後點擊上方「儲存修改」</p>
                 </div>
-                <!-- 週次切換按鈕 -->
                 <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
-                    <button onclick="changeWeek(-1)" class="p-2 hover:bg-white rounded-lg transition-all text-slate-600 hover:text-blue-600 shadow-sm">
+                    <button onclick="changeWeek(-1)" class="p-2 hover:bg-white rounded-lg transition-all text-slate-600 shadow-sm">
                         <i data-lucide="chevron-left" class="w-4 h-4"></i>
                     </button>
                     <span id="week-display" class="text-xs font-bold px-4 text-slate-700 min-w-[120px] text-center">本週</span>
-                    <button onclick="changeWeek(1)" class="p-2 hover:bg-white rounded-lg transition-all text-slate-600 hover:text-blue-600 shadow-sm">
+                    <button onclick="changeWeek(1)" class="p-2 hover:bg-white rounded-lg transition-all text-slate-600 shadow-sm">
                         <i data-lucide="chevron-right" class="w-4 h-4"></i>
                     </button>
                 </div>
             </div>
 
             <div class="grid lg:grid-cols-2 gap-6">
-                <!-- 個人填寫 (尺寸縮小) -->
                 <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
                     <div class="px-4 py-3 bg-blue-600 text-white flex justify-between items-center">
                         <h3 class="text-sm font-bold flex items-center gap-2"><i data-lucide="mouse-pointer-2" class="w-4 h-4"></i> 您的時間狀態</h3>
@@ -122,11 +114,10 @@
                         <div id="my-calendar" class="calendar-grid no-select" oncontextmenu="return false;"></div>
                     </div>
                 </div>
-                <!-- 團隊統計 (尺寸縮小) -->
                 <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
                     <div class="px-4 py-3 bg-slate-800 text-white flex justify-between items-center">
-                        <h3 class="text-sm font-bold flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> 團隊空檔統計 <span id="participant-count" class="ml-1 text-slate-400"></span></h3>
-                        <span class="text-[10px] bg-slate-700 px-2 py-0.5 rounded">懸停看姓名</span>
+                        <h3 class="text-sm font-bold flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> 團隊空檔統計</h3>
+                        <span id="participant-count" class="text-[10px] bg-slate-700 px-2 py-0.5 rounded">懸停看姓名</span>
                     </div>
                     <div class="overflow-x-auto custom-scroll">
                         <div id="team-calendar" class="calendar-grid no-select"></div>
@@ -159,7 +150,6 @@
             const today = new Date();
             const startDate = new Date(today);
             startDate.setDate(today.getDate() + (state.currentWeekOffset * 7));
-
             for (let i = 0; i < 7; i++) {
                 const d = new Date(startDate);
                 d.setDate(startDate.getDate() + i);
@@ -181,11 +171,14 @@
 
         async function callAPI(data) {
             try {
-                const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify(data) });
+                const response = await fetch(API_URL, { 
+                    method: 'POST', 
+                    body: JSON.stringify(data)
+                });
                 return await response.json();
             } catch (e) {
-                console.error(e);
-                return null;
+                console.error("API Error:", e);
+                return { error: "網路連線異常" };
             }
         }
 
@@ -195,7 +188,7 @@
         }
 
         async function handleCreateMeeting() {
-            const title = document.getElementById('new-title').value;
+            const title = document.getElementById('new-title').value.trim();
             if (!title) return alert("請輸入主題");
             const res = await callAPI({ action: 'createMeeting', title });
             if (res?.meetingId) {
@@ -213,29 +206,23 @@
             if (!nameInput || !passInput) return alert("請填寫姓名與密碼");
             
             btn.disabled = true;
-            btn.innerText = "驗證中...";
+            btn.innerText = "驗證身分中...";
 
             const res = await callAPI({ action: 'getAllResponses', meetingId });
-            if (res?.responses) {
-                // 修正：更強健的比對邏輯
-                const myRecord = res.responses.find(r => {
-                    const dbName = String(r.name || "").trim();
-                    return dbName === nameInput;
-                });
+            if (res && res.responses) {
+                const myRecord = res.responses.find(r => String(r.name).trim() === nameInput);
                 
                 if (myRecord) {
-                    const dbPass = String(myRecord.password || "").trim();
+                    const dbPass = String(myRecord.password).trim();
                     if (dbPass !== passInput) {
                         btn.disabled = false;
                         btn.innerText = "進入系統";
-                        return alert("此姓名已被使用。請輸入正確密碼以修改時間，或是更換姓名。");
+                        return alert("姓名已存在，但密碼錯誤。請重新輸入或更換姓名。");
                     }
-                    // 密碼正確，載入舊資料
                     try {
                         state.mySlots = typeof myRecord.slots === 'string' ? JSON.parse(myRecord.slots) : (myRecord.slots || {});
                     } catch(e) { state.mySlots = {}; }
                 } else {
-                    // 全新帳號
                     state.mySlots = {};
                 }
                 
@@ -249,31 +236,56 @@
                 document.getElementById('nav-user-info').classList.remove('hidden');
                 showView('view-survey');
             } else {
-                alert("無法連線至資料庫，請稍後再試。");
+                alert("讀取資料失敗，請重新整理頁面。");
             }
             btn.disabled = false;
             btn.innerText = "進入系統";
         }
 
+        async function handleSave() {
+            const btn = document.getElementById('save-btn');
+            const originalText = btn.innerText;
+            btn.disabled = true;
+            btn.innerText = "正在儲存...";
+
+            // 確保所有關鍵資訊都正確發送
+            const payload = {
+                action: 'saveResponse',
+                meetingId: meetingId,
+                name: state.userName,
+                password: state.password,
+                slots: JSON.stringify(state.mySlots)
+            };
+
+            const res = await callAPI(payload);
+
+            if (res && !res.error) {
+                alert("修改成功！資料已更新。");
+                // 儲存後重新抓取所有人資料以更新統計圖
+                const fresh = await callAPI({ action: 'getAllResponses', meetingId });
+                if (fresh && fresh.responses) {
+                    processGroupData(fresh.responses);
+                    renderCalendars();
+                }
+            } else {
+                // 如果後端擋下，提示具體錯誤
+                const errorMsg = res?.error || "儲存失敗，請檢查網路或稍後再試";
+                alert("錯誤：" + errorMsg);
+            }
+            btn.disabled = false;
+            btn.innerText = originalText;
+        }
+
         function handleLogout() {
-            if(!confirm("確定要登出嗎？")) return;
-            state.userName = '';
-            state.password = '';
-            state.mySlots = {};
-            document.getElementById('nav-user-info').classList.add('hidden');
-            document.getElementById('login-name').value = '';
-            document.getElementById('login-password').value = '';
-            showView('view-auth');
+            if(!confirm("確定要登出嗎？未儲存的更改將會遺失。")) return;
+            window.location.reload();
         }
 
         function changeWeek(direction) {
             state.currentWeekOffset += direction;
             const weekDisplay = document.getElementById('week-display');
-            if (state.currentWeekOffset === 0) weekDisplay.innerText = "本週 (今日起)";
-            else if (state.currentWeekOffset === 1) weekDisplay.innerText = "下一週";
-            else if (state.currentWeekOffset === -1) weekDisplay.innerText = "上一週";
-            else weekDisplay.innerText = `${state.currentWeekOffset > 0 ? '未來' : '過去'}第 ${Math.abs(state.currentWeekOffset)} 週`;
-            
+            if (state.currentWeekOffset === 0) weekDisplay.innerText = "本週";
+            else weekDisplay.innerText = `第 ${state.currentWeekOffset > 0 ? '+' : ''}${state.currentWeekOffset} 週`;
             renderCalendars();
         }
 
@@ -283,67 +295,33 @@
             responses.forEach(r => {
                 try {
                     const slots = typeof r.slots === 'string' ? JSON.parse(r.slots) : (r.slots || {});
-                    const rName = String(r.name || "").trim();
+                    const rName = String(r.name).trim();
                     Object.keys(slots).forEach(s => {
                         if (slots[s]) {
                             if (!state.groupData[s]) state.groupData[s] = [];
-                            // 如果是目前登入者，顯示最新記憶體狀態，而非資料庫舊狀態 (為了即時回饋)
-                            if (rName === state.userName) return;
-                            state.groupData[s].push(rName);
+                            if (rName !== state.userName) {
+                                state.groupData[s].push(rName);
+                            }
                         }
                     });
                 } catch(e) {}
             });
-            
-            // 將目前使用者的最新選擇加入統計 (即時更新右側圖表)
-            Object.keys(state.mySlots).forEach(s => {
-                if (state.mySlots[s]) {
-                    if (!state.groupData[s]) state.groupData[s] = [];
-                    if (!state.groupData[s].includes(state.userName)) {
-                        state.groupData[s].push(state.userName);
-                    }
-                }
-            });
-        }
-
-        async function handleSave() {
-            const btn = document.getElementById('save-btn');
-            btn.disabled = true;
-            btn.innerText = "儲存中...";
-            const res = await callAPI({
-                action: 'saveResponse',
-                meetingId,
-                name: state.userName,
-                password: state.password,
-                slots: JSON.stringify(state.mySlots)
-            });
-            if (res && !res.error) {
-                alert("已成功儲存！");
-                const fresh = await callAPI({ action: 'getAllResponses', meetingId });
-                processGroupData(fresh.responses);
-                renderCalendars();
-            } else {
-                alert(res?.error || "儲存失敗，請檢查網路連接");
-            }
-            btn.disabled = false;
-            btn.innerText = "儲存";
+            updateTeamStatsFromMySlots();
         }
 
         function toggleSlot(key, el) {
             state.mySlots[key] = state.dragMode;
             if (state.dragMode) el.classList.add('slot-active');
             else el.classList.remove('slot-active');
-            
-            // 即時同步更新右側統計資料 (不需等待儲存)
             updateTeamStatsFromMySlots();
         }
 
         function updateTeamStatsFromMySlots() {
-             // 重新掃描所有格子的統計數據
              const teamCells = document.querySelectorAll('#team-calendar [data-team-key]');
              teamCells.forEach(cell => {
                  const key = cell.dataset.teamKey;
-                 const names = (state.groupData[key] || []).filter(n => n !== state.userName);
+                 const others = state.groupData[key] || [];
+                 const names = [...others];
                  if (state.mySlots[key]) names.push(state.userName);
                  
                  const count = names.length;
@@ -366,18 +344,16 @@
             const teamContainer = document.getElementById('team-calendar');
             myContainer.innerHTML = '';
             teamContainer.innerHTML = '';
-
             const currentWeekDates = getWeekDates();
 
             [myContainer, teamContainer].forEach(c => {
                 c.innerHTML += '<div class="w-[50px] border-r border-slate-200 bg-slate-50 sticky left-0 z-20"></div>';
                 currentWeekDates.forEach((dateStr) => {
                     const dateObj = new Date(dateStr);
-                    const isToday = new Date().toISOString().split('T')[0] === dateStr;
                     c.innerHTML += `
-                        <div class="text-center py-2 border-r border-slate-100 bg-slate-50 ${isToday ? 'ring-1 ring-inset ring-blue-500 bg-blue-50' : ''}">
+                        <div class="text-center py-2 border-r border-slate-100 bg-slate-50">
                             <div class="text-[9px] text-slate-400 font-bold uppercase">${daysShort[dateObj.getDay()]}</div>
-                            <div class="text-[11px] font-black ${isToday ? 'text-blue-600' : 'text-slate-700'}">${dateStr.split('-').slice(1).join('/')}</div>
+                            <div class="text-[11px] font-black text-slate-700">${dateStr.split('-').slice(1).join('/')}</div>
                         </div>`;
                 });
             });
@@ -405,24 +381,14 @@
                             el.onmouseenter = () => { if (state.isDragging) toggleSlot(key, el); };
                             c.appendChild(el);
                         } else {
-                            const names = (state.groupData[key] || []).filter(n => n !== state.userName);
-                            if (state.mySlots[key]) names.push(state.userName);
-                            
-                            const count = names.length;
-                            const intensity = state.totalParticipants > 0 ? (count / state.totalParticipants) : 0;
                             el.className = `h-8 border-r border-b border-slate-50 flex items-center justify-center text-[10px] text-white font-bold`;
-                            el.dataset.teamKey = key; // 方便即時更新
-                            if (count > 0) {
-                                el.style.backgroundColor = `rgba(34, 197, 94, ${0.2 + intensity * 0.8})`;
-                                el.innerText = count;
-                                el.onmouseenter = (e) => showTooltip(e, names);
-                                el.onmouseleave = hideTooltip;
-                            }
+                            el.dataset.teamKey = key;
                             c.appendChild(el);
                         }
                     });
                 });
             });
+            updateTeamStatsFromMySlots();
         }
 
         function showTooltip(e, names) {
