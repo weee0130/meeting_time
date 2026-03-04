@@ -1,337 +1,328 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Calendar, Users, Lock, User, Copy, Save, Info, PlusCircle, LogIn, CheckCircle } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeetingSync - 會議時間調查系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .no-select { user-select: none; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .calendar-grid { display: grid; grid-template-columns: 64px repeat(7, 1fr); }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen pb-20">
 
-const App = () => {
-  const [meetingId, setMeetingId] = useState(new URLSearchParams(window.location.search).get('id'));
-  const [view, setView] = useState(meetingId ? 'auth' : 'admin');
-  const [loading, setLoading] = useState(false);
-  
-  // 管理員狀態
-  const [newTitle, setNewTitle] = useState('');
-  const [generatedLink, setGeneratedLink] = useState('');
-
-  // 參與者狀態
-  const [userName, setUserName] = useState('');
-  const [password, setPassword] = useState('');
-  const [meetingTitle, setMeetingTitle] = useState('');
-  
-  // 時間選擇狀態
-  const [mySlots, setMySlots] = useState({});
-  const [groupData, setGroupData] = useState({}); 
-  const [totalParticipants, setTotalParticipants] = useState(0);
-
-  // 拖拉狀態
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragMode, setDragMode] = useState(true);
-
-  // 氣泡提示狀態
-  const [tooltip, setTooltip] = useState({ show: false, x: 0, y: 0, names: [] });
-
-  // 已自動替換為您的網頁應用程式 URL
-  const API_URL = 'https://script.google.com/macros/s/AKfycbxogvFVUYKbBaHqzXWFO714dhcEmjgt1r9IkwUeNtUxwYlW4eYs0IrQEVdLp7zBb_yn/exec'; 
-
-  const hours = Array.from({ length: 16 }, (_, i) => i + 6); // 06:00 - 21:00
-  const daysShort = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
-
-  const getWeekDays = useCallback(() => {
-    const now = new Date();
-    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(startOfWeek);
-      d.setDate(d.getDate() + i);
-      return d.toISOString().split('T')[0];
-    });
-  }, []);
-
-  const weekDates = getWeekDays();
-
-  useEffect(() => {
-    if (meetingId) {
-      fetchMeetingInfo();
-    }
-  }, [meetingId]);
-
-  const callAPI = async (data) => {
-    try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        body: JSON.stringify(data)
-      });
-      return await response.json();
-    } catch (e) {
-      console.error("API Error:", e);
-      return null;
-    }
-  };
-
-  const fetchMeetingInfo = async () => {
-    setLoading(true);
-    const res = await callAPI({ action: 'getMeetingInfo', meetingId });
-    if (res && res.title) {
-      setMeetingTitle(res.title);
-    } else {
-      setMeetingTitle("讀取會議資訊中...");
-    }
-    setLoading(false);
-  };
-
-  const handleCreateMeeting = async () => {
-    if (!newTitle) return alert("請輸入會議主題");
-    setLoading(true);
-    const res = await callAPI({ action: 'createMeeting', title: newTitle });
-    if (res && res.meetingId) {
-      const link = `${window.location.origin}${window.location.pathname}?id=${res.meetingId}`;
-      setGeneratedLink(link);
-    } else {
-      alert("建立失敗，請檢查 GAS 部署權限");
-    }
-    setLoading(false);
-  };
-
-  const handleLogin = async () => {
-    if (!userName || !password) return alert("請輸入姓名與密碼");
-    setLoading(true);
-    
-    const res = await callAPI({ action: 'getAllResponses', meetingId });
-    if (res && res.responses) {
-      const allResponses = res.responses;
-      const myRecord = allResponses.find(r => r.name === userName);
-      
-      if (myRecord) {
-        if (myRecord.password !== password) {
-          alert("此姓名已被登記，請輸入正確密碼或更換姓名。");
-          setLoading(false);
-          return;
-        }
-        setMySlots(JSON.parse(myRecord.slots));
-      }
-
-      const heatmapNames = {};
-      allResponses.forEach(r => {
-        const slots = JSON.parse(r.slots);
-        Object.keys(slots).forEach(s => {
-          if (slots[s]) {
-            if (!heatmapNames[s]) heatmapNames[s] = [];
-            heatmapNames[s].push(r.name);
-          }
-        });
-      });
-      setGroupData(heatmapNames);
-      setTotalParticipants(allResponses.length);
-      setView('survey');
-    } else {
-      alert("資料同步失敗，請稍後再試");
-    }
-    setLoading(false);
-  };
-
-  const handleSave = async () => {
-    setLoading(true);
-    const res = await callAPI({
-      action: 'saveResponse',
-      meetingId,
-      name: userName,
-      password,
-      slots: JSON.stringify(mySlots)
-    });
-    
-    if (res && (res.status === "success" || !res.error)) {
-      alert("儲存成功！");
-      const freshData = await callAPI({ action: 'getAllResponses', meetingId });
-      if (freshData && freshData.responses) {
-        const heatmapNames = {};
-        freshData.responses.forEach(r => {
-          const slots = JSON.parse(r.slots);
-          Object.keys(slots).forEach(s => {
-            if (slots[s]) {
-              if (!heatmapNames[s]) heatmapNames[s] = [];
-              heatmapNames[s].push(r.name);
-            }
-          });
-        });
-        setGroupData(heatmapNames);
-        setTotalParticipants(freshData.responses.length);
-      }
-    } else {
-      alert(res?.error || "儲存失敗");
-    }
-    setLoading(false);
-  };
-
-  const handleMouseDown = (key) => {
-    const newState = !mySlots[key];
-    setDragMode(newState);
-    setIsDragging(true);
-    setMySlots(prev => ({ ...prev, [key]: newState }));
-  };
-
-  const handleMouseEnterGrid = (key) => {
-    if (isDragging) {
-      setMySlots(prev => ({ ...prev, [key]: dragMode }));
-    }
-  };
-
-  const CalendarGrid = ({ isInteractive, data, participantsCount }) => (
-    <div className="overflow-x-auto select-none relative bg-white" onMouseLeave={() => setIsDragging(false)} onMouseUp={() => setIsDragging(false)}>
-      <div className="min-w-[650px]">
-        <div className="flex border-b border-slate-200 sticky top-0 bg-slate-50 z-10">
-          <div className="w-16 border-r border-slate-200"></div>
-          {weekDates.map((date, i) => (
-            <div key={date} className="flex-1 text-center py-2 border-r border-slate-200">
-              <div className="text-[10px] text-slate-500 uppercase">{daysShort[i]}</div>
-              <div className="text-sm font-bold text-slate-800">{date.split('-').slice(1).join('/')}</div>
-            </div>
-          ))}
-        </div>
-        
-        {hours.map(hour => (
-          <div key={hour} className="flex border-b border-slate-100 h-10">
-            <div className="w-16 text-[10px] text-slate-400 flex items-center justify-center border-r border-slate-200 bg-slate-50 font-mono">
-              {String(hour).padStart(2, '0')}:00
-            </div>
-            {weekDates.map(date => {
-              const key = `${date}-${hour}`;
-              const names = data[key] || [];
-              const count = names.length;
-              const intensity = participantsCount > 0 ? (count / participantsCount) : 0;
-              
-              if (isInteractive) {
-                return (
-                  <div 
-                    key={key}
-                    onMouseDown={() => handleMouseDown(key)}
-                    onMouseEnter={() => handleMouseEnterGrid(key)}
-                    className={`flex-1 border-r border-slate-100 cursor-pointer transition-colors ${mySlots[key] ? 'bg-blue-500' : 'hover:bg-blue-50'}`}
-                  ></div>
-                );
-              } else {
-                return (
-                  <div 
-                    key={key}
-                    onMouseEnter={(e) => count > 0 && setTooltip({ show: true, x: e.clientX, y: e.clientY, names })}
-                    onMouseLeave={() => setTooltip({ ...tooltip, show: false })}
-                    style={{ backgroundColor: count > 0 ? `rgba(34, 197, 94, ${0.2 + intensity * 0.8})` : 'transparent' }}
-                    className="flex-1 border-r border-slate-100 flex items-center justify-center text-[10px] text-white font-bold"
-                  >
-                    {count > 0 && count}
-                  </div>
-                );
-              }
-            })}
-          </div>
-        ))}
-      </div>
+    <!-- Tooltip 氣泡 -->
+    <div id="tooltip" class="fixed z-[9999] pointer-events-none bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-2xl border border-slate-700 hidden">
+        <p class="font-bold border-b border-slate-700 pb-1 mb-1.5 flex items-center gap-1.5 text-green-400">
+            <i data-lucide="users" class="w-3 h-3"></i> 有空的人：
+        </p>
+        <div id="tooltip-names" class="flex flex-wrap gap-1 max-w-[180px]"></div>
     </div>
-  );
 
-  return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 pb-20 font-sans">
-      {tooltip.show && (
-        <div 
-          className="fixed z-[9999] pointer-events-none bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-2xl border border-slate-700"
-          style={{ left: tooltip.x + 15, top: tooltip.y + 15 }}
-        >
-          <p className="font-bold border-b border-slate-700 pb-1 mb-1.5 flex items-center gap-1.5 text-green-400">
-            <Users className="w-3 h-3" /> 有空的人：
-          </p>
-          <div className="flex flex-wrap gap-1 max-w-[180px]">
-            {tooltip.names.map((n, idx) => (
-              <span key={idx} className="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">{n}</span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <nav className="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <h1 className="text-xl font-black text-blue-600 flex items-center gap-2">
-            <Calendar className="w-6 h-6" /> MeetingSync
-          </h1>
-          {view === 'survey' && (
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-bold text-slate-800">{userName}</span>
-              <button onClick={handleSave} disabled={loading} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg active:scale-95 disabled:opacity-50">
-                <Save className="w-4 h-4 mr-1" /> {loading ? "儲存中" : "儲存時間"}
-              </button>
+    <!-- 導航欄 -->
+    <nav class="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-black text-blue-600 flex items-center gap-2">
+                <i data-lucide="calendar" class="w-6 h-6"></i> MeetingSync
+            </h1>
+            <div id="nav-user-info" class="hidden items-center gap-4">
+                <span id="display-user-name" class="text-sm font-bold text-slate-800"></span>
+                <button onclick="handleSave()" id="save-btn" class="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg active:scale-95 transition-all">
+                    儲存時間
+                </button>
             </div>
-          )}
         </div>
-      </nav>
+    </nav>
 
-      <main className="max-w-7xl mx-auto px-4 mt-10">
-        {view === 'admin' && (
-          <div className="max-w-lg mx-auto bg-white rounded-[2rem] shadow-2xl p-10 border border-slate-200">
-            <div className="mb-8 text-center">
-              <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-600">
-                <PlusCircle className="w-8 h-8" />
-              </div>
-              <h2 className="text-2xl font-black">發起會議</h2>
-            </div>
-            <div className="space-y-5">
-              <input 
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                type="text" 
-                placeholder="例如：專案週會" 
-                className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm"
-              />
-              <button onClick={handleCreateMeeting} disabled={loading} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-bold hover:bg-slate-800 shadow-xl active:scale-95">
-                {loading ? "處理中..." : "生成調查連結"}
-              </button>
-              {generatedLink && (
-                <div className="mt-8 p-6 bg-green-50 rounded-2xl border border-green-100">
-                  <div className="flex items-center gap-2 bg-white p-3 rounded-xl border border-green-200">
-                    <code className="flex-1 text-xs truncate text-slate-600">{generatedLink}</code>
-                    <button onClick={() => {navigator.clipboard.writeText(generatedLink); alert("複製成功");}} className="p-2.5 text-green-600 hover:bg-green-50 rounded-lg">
-                      <Copy className="w-4 h-4" />
-                    </button>
-                  </div>
+    <main class="max-w-7xl mx-auto px-4 mt-10">
+        <!-- 管理員界面 -->
+        <div id="view-admin" class="max-w-lg mx-auto bg-white rounded-[2rem] shadow-2xl p-10 border border-slate-200 hidden">
+            <div class="mb-8 text-center">
+                <div class="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-600">
+                    <i data-lucide="plus-circle" class="w-8 h-8"></i>
                 </div>
-              )}
+                <h2 class="text-2xl font-black">發起會議</h2>
             </div>
-          </div>
-        )}
+            <div class="space-y-5">
+                <input id="new-title" type="text" placeholder="例如：專案週會" class="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-100 outline-none shadow-sm">
+                <button onclick="handleCreateMeeting()" class="w-full bg-slate-900 text-white py-5 rounded-2xl font-bold hover:bg-slate-800 shadow-xl active:scale-95 transition-all">
+                    生成調查連結
+                </button>
+                <div id="link-result" class="mt-8 p-6 bg-green-50 rounded-2xl border border-green-100 hidden">
+                    <div class="flex items-center gap-2 bg-white p-3 rounded-xl border border-green-200">
+                        <code id="generated-url" class="flex-1 text-xs truncate text-slate-600"></code>
+                        <button onclick="copyLink()" class="p-2.5 text-green-600 hover:bg-green-50 rounded-lg">
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-        {view === 'auth' && (
-          <div className="max-w-md mx-auto bg-white rounded-[2rem] shadow-2xl p-10 border border-slate-200">
-            <div className="text-center mb-10">
-              <div className="bg-indigo-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-indigo-600">
-                <LogIn className="w-8 h-8" />
-              </div>
-              <h2 className="text-2xl font-black">{meetingTitle || "會議載入中..."}</h2>
-              <p className="text-slate-500 text-sm mt-2">輸入姓名與密碼開始填寫</p>
+        <!-- 身份驗證界面 -->
+        <div id="view-auth" class="max-w-md mx-auto bg-white rounded-[2rem] shadow-2xl p-10 border border-slate-200 hidden">
+            <div class="text-center mb-10">
+                <div class="bg-indigo-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-indigo-600">
+                    <i data-lucide="log-in" class="w-8 h-8"></i>
+                </div>
+                <h2 id="auth-meeting-title" class="text-2xl font-black">載入中...</h2>
+                <p class="text-slate-500 text-sm mt-2">輸入姓名與密碼開始填寫</p>
             </div>
-            <div className="space-y-5">
-              <input value={userName} onChange={(e) => setUserName(e.target.value)} type="text" placeholder="姓名" className="w-full px-6 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-100 outline-none shadow-sm"/>
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="密碼" className="w-full px-6 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-100 outline-none shadow-sm"/>
-              <button onClick={handleLogin} disabled={loading} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-bold hover:bg-blue-700 shadow-xl shadow-blue-200 active:scale-95">
-                {loading ? "進入中..." : "進入填寫頁面"}
-              </button>
+            <div class="space-y-5">
+                <input id="login-name" type="text" placeholder="姓名" class="w-full px-6 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-100 outline-none shadow-sm">
+                <input id="login-password" type="password" placeholder="密碼" class="w-full px-6 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-100 outline-none shadow-sm">
+                <button onclick="handleLogin()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-bold hover:bg-blue-700 shadow-xl active:scale-95 transition-all">
+                    進入填寫頁面
+                </button>
             </div>
-          </div>
-        )}
+        </div>
 
-        {view === 'survey' && (
-          <div className="space-y-10 animate-in fade-in duration-700">
-            <div className="text-center">
-              <h2 className="text-4xl font-black">{meetingTitle}</h2>
-              <p className="text-slate-500 mt-4">左側框選時間，右側查看誰有空</p>
+        <!-- 調查主界面 -->
+        <div id="view-survey" class="space-y-10 hidden animate-in fade-in duration-700">
+            <div class="text-center">
+                <h2 id="survey-title" class="text-4xl font-black">會議主題</h2>
+                <p class="text-slate-500 mt-4 italic">左側框選您的時間，右側滑鼠懸停查看「誰有空」</p>
             </div>
-            <div className="grid xl:grid-cols-2 gap-10">
-              <div className="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
-                <div className="p-5 bg-blue-600 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><User className="w-4 h-4" /> 您的時間</h3><span className="text-[10px] bg-white/20 px-2 py-1 rounded">滑鼠框選</span></div>
-                <CalendarGrid isInteractive={true} data={mySlots} />
-              </div>
-              <div className="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
-                <div className="p-5 bg-slate-800 text-white flex justify-between items-center"><h3 className="font-bold flex items-center gap-2"><Users className="w-4 h-4" /> 團隊熱點 (共 {totalParticipants} 人)</h3><span className="text-[10px] bg-slate-700 px-2 py-1 rounded">懸停看姓名</span></div>
-                <CalendarGrid isInteractive={false} data={groupData} participantsCount={totalParticipants} />
-              </div>
+            <div class="grid xl:grid-cols-2 gap-10">
+                <!-- 個人填寫 -->
+                <div class="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
+                    <div class="p-5 bg-blue-600 text-white flex justify-between items-center">
+                        <h3 class="font-bold flex items-center gap-2"><i data-lucide="user" class="w-4 h-4"></i> 您的時間</h3>
+                        <span class="text-[10px] bg-white/20 px-2 py-1 rounded">滑鼠框選</span>
+                    </div>
+                    <div id="my-calendar" class="calendar-grid no-select"></div>
+                </div>
+                <!-- 團隊統計 -->
+                <div class="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
+                    <div class="p-5 bg-slate-800 text-white flex justify-between items-center">
+                        <h3 class="font-bold flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> 團隊統計 <span id="participant-count" class="ml-1 text-slate-400"></span></h3>
+                        <span class="text-[10px] bg-slate-700 px-2 py-1 rounded">懸停看姓名</span>
+                    </div>
+                    <div id="team-calendar" class="calendar-grid no-select"></div>
+                </div>
             </div>
-          </div>
-        )}
-      </main>
-    </div>
-  );
-};
+        </div>
+    </main>
 
-export default App;
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxogvFVUYKbBaHqzXWFO714dhcEmjgt1r9IkwUeNtUxwYlW4eYs0IrQEVdLp7zBb_yn/exec';
+        const meetingId = new URLSearchParams(window.location.search).get('id');
+        
+        let state = {
+            userName: '',
+            password: '',
+            mySlots: {},
+            groupData: {},
+            totalParticipants: 0,
+            isDragging: false,
+            dragMode: true
+        };
+
+        const hours = Array.from({ length: 16 }, (_, i) => i + 6);
+        const daysShort = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+        
+        // 取得本週日期
+        const getWeekDates = () => {
+            const now = new Date();
+            const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+            return Array.from({ length: 7 }, (_, i) => {
+                const d = new Date(startOfWeek);
+                d.setDate(d.getDate() + i);
+                return d.toISOString().split('T')[0];
+            });
+        };
+        const weekDates = getWeekDates();
+
+        // 初始化
+        window.onload = async () => {
+            lucide.createIcons();
+            if (meetingId) {
+                showView('view-auth');
+                const res = await callAPI({ action: 'getMeetingInfo', meetingId });
+                document.getElementById('auth-meeting-title').innerText = res?.title || '未知會議';
+            } else {
+                showView('view-admin');
+            }
+        };
+
+        async function callAPI(data) {
+            try {
+                const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify(data) });
+                return await response.json();
+            } catch (e) {
+                console.error(e);
+                return null;
+            }
+        }
+
+        function showView(id) {
+            ['view-admin', 'view-auth', 'view-survey'].forEach(v => document.getElementById(v).classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        async function handleCreateMeeting() {
+            const title = document.getElementById('new-title').value;
+            if (!title) return alert("請輸入主題");
+            const res = await callAPI({ action: 'createMeeting', title });
+            if (res?.meetingId) {
+                const url = window.location.origin + window.location.pathname + '?id=' + res.meetingId;
+                document.getElementById('generated-url').innerText = url;
+                document.getElementById('link-result').classList.remove('hidden');
+            }
+        }
+
+        async function handleLogin() {
+            state.userName = document.getElementById('login-name').value;
+            state.password = document.getElementById('login-password').value;
+            if (!state.userName || !state.password) return alert("請填寫姓名與密碼");
+
+            const res = await callAPI({ action: 'getAllResponses', meetingId });
+            if (res?.responses) {
+                const myRecord = res.responses.find(r => r.name === state.userName);
+                if (myRecord) {
+                    if (myRecord.password !== state.password) return alert("姓名已被登記，密碼錯誤");
+                    state.mySlots = JSON.parse(myRecord.slots);
+                }
+                processGroupData(res.responses);
+                renderCalendars();
+                document.getElementById('survey-title').innerText = document.getElementById('auth-meeting-title').innerText;
+                document.getElementById('display-user-name').innerText = state.userName;
+                document.getElementById('nav-user-info').classList.remove('hidden');
+                showView('view-survey');
+            }
+        }
+
+        function processGroupData(responses) {
+            state.groupData = {};
+            state.totalParticipants = responses.length;
+            responses.forEach(r => {
+                const slots = JSON.parse(r.slots);
+                Object.keys(slots).forEach(s => {
+                    if (slots[s]) {
+                        if (!state.groupData[s]) state.groupData[s] = [];
+                        state.groupData[s].push(r.name);
+                    }
+                });
+            });
+            document.getElementById('participant-count').innerText = `(共 ${state.totalParticipants} 人)`;
+        }
+
+        async function handleSave() {
+            const btn = document.getElementById('save-btn');
+            btn.disabled = true;
+            btn.innerText = "儲存中...";
+            const res = await callAPI({
+                action: 'saveResponse',
+                meetingId,
+                name: state.userName,
+                password: state.password,
+                slots: JSON.stringify(state.mySlots)
+            });
+            if (res && !res.error) {
+                alert("儲存成功");
+                const fresh = await callAPI({ action: 'getAllResponses', meetingId });
+                processGroupData(fresh.responses);
+                renderCalendars();
+            }
+            btn.disabled = false;
+            btn.innerText = "儲存時間";
+        }
+
+        function renderCalendars() {
+            const myContainer = document.getElementById('my-calendar');
+            const teamContainer = document.getElementById('team-calendar');
+            myContainer.innerHTML = '';
+            teamContainer.innerHTML = '';
+
+            // Render Headers
+            [myContainer, teamContainer].forEach(c => {
+                c.innerHTML += '<div class="w-16 border-r border-slate-200 bg-slate-50"></div>';
+                weekDates.forEach((date, i) => {
+                    c.innerHTML += `
+                        <div class="text-center py-2 border-r border-slate-200 bg-slate-50">
+                            <div class="text-[10px] text-slate-500 uppercase">${daysShort[i]}</div>
+                            <div class="text-xs font-bold">${date.split('-').slice(1).join('/')}</div>
+                        </div>`;
+                });
+            });
+
+            // Render Slots
+            hours.forEach(hour => {
+                [myContainer, teamContainer].forEach(c => {
+                    const isMy = c.id === 'my-calendar';
+                    c.innerHTML += `
+                        <div class="w-16 h-10 text-[10px] text-slate-400 flex items-center justify-center border-r border-slate-200 bg-slate-50 font-mono border-b border-slate-100">
+                            ${String(hour).padStart(2, '0')}:00
+                        </div>`;
+                    
+                    weekDates.forEach(date => {
+                        const key = `${date}-${hour}`;
+                        if (isMy) {
+                            const active = state.mySlots[key];
+                            const el = document.createElement('div');
+                            el.className = `border-r border-b border-slate-100 cursor-pointer transition-colors ${active ? 'bg-blue-500' : 'hover:bg-blue-50'}`;
+                            el.onmousedown = () => {
+                                state.dragMode = !state.mySlots[key];
+                                state.isDragging = true;
+                                state.mySlots[key] = state.dragMode;
+                                renderCalendars();
+                            };
+                            el.onmouseenter = () => {
+                                if (state.isDragging) {
+                                    state.mySlots[key] = state.dragMode;
+                                    renderCalendars();
+                                }
+                            };
+                            c.appendChild(el);
+                        } else {
+                            const names = state.groupData[key] || [];
+                            const count = names.length;
+                            const intensity = state.totalParticipants > 0 ? (count / state.totalParticipants) : 0;
+                            const el = document.createElement('div');
+                            el.className = `border-r border-b border-slate-100 flex items-center justify-center text-[10px] text-white font-bold`;
+                            if (count > 0) {
+                                el.style.backgroundColor = `rgba(34, 197, 94, ${0.2 + intensity * 0.8})`;
+                                el.innerText = count;
+                                el.onmouseenter = (e) => showTooltip(e, names);
+                                el.onmouseleave = hideTooltip;
+                            }
+                            c.appendChild(el);
+                        }
+                    });
+                });
+            });
+        }
+
+        function showTooltip(e, names) {
+            const tt = document.getElementById('tooltip');
+            const nameContainer = document.getElementById('tooltip-names');
+            nameContainer.innerHTML = names.map(n => `<span class="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">${n}</span>`).join('');
+            tt.style.left = (e.clientX + 15) + 'px';
+            tt.style.top = (e.clientY + 15) + 'px';
+            tt.classList.remove('hidden');
+        }
+
+        function hideTooltip() {
+            document.getElementById('tooltip').classList.add('hidden');
+        }
+
+        function copyLink() {
+            const url = document.getElementById('generated-url').innerText;
+            const temp = document.createElement('input');
+            document.body.appendChild(temp);
+            temp.value = url;
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+            alert("已複製連結");
+        }
+
+        window.onmouseup = () => { state.isDragging = false; };
+    </script>
+</body>
+</html>
