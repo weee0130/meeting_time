@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8">
+</head>
+<body class="bg-slate-50 p-4 md:p-10">
+
+  <div id="app" class="max-w-2xl mx-auto">
+    <div id="loading" class="text-center py-20 text-gray-400">載入中...</div>
+
+    <div id="adminView" class="hidden space-y-6">
+      <div class="bg-white p-8 rounded-2xl shadow-sm border">
+        <h1 class="text-2xl font-bold mb-4">🆕 建立新會議</h1>
+        <input id="newTitle" type="text" placeholder="會議名稱 (如：專案進度)" class="w-full p-3 border rounded-xl mb-4">
+        <button onclick="createMeeting()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">生成連結</button>
+        <div id="linkOutput" class="mt-4 p-3 bg-blue-50 text-blue-700 rounded-lg break-all hidden"></div>
+      </div>
+    </div>
+
+    <div id="surveyView" class="hidden space-y-6">
+      <div class="bg-white p-8 rounded-2xl shadow-sm border">
+        <h1 id="meetingTitle" class="text-2xl font-bold mb-2">載入中...</h1>
+        <p class="text-gray-500 mb-6 text-sm">請輸入姓名並選擇您有空的時間</p>
+        
+        <input id="userName" type="text" placeholder="您的姓名" class="w-full p-3 border rounded-xl mb-6">
+        
+        <div class="grid grid-cols-3 gap-2" id="timeSlots">
+          </div>
+
+        <button onclick="submitTime()" class="w-full mt-8 bg-green-600 text-white py-3 rounded-xl font-bold">送出有空時間</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = '你的GAS部署網址'; // 貼上剛剛部署的 URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const meetingId = urlParams.get('id');
+
+    // 初始判斷
+    window.onload = async () => {
+      document.getElementById('loading').classList.add('hidden');
+      if (meetingId) {
+        document.getElementById('surveyView').classList.remove('hidden');
+        loadMeetingInfo();
+        renderSlots();
+      } else {
+        document.getElementById('adminView').classList.remove('hidden');
+      }
+    };
+
+    // 建立會議
+    async function createMeeting() {
+      const title = document.getElementById('newTitle').value;
+      const resp = await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'create', title: title })
+      });
+      const id = await resp.text();
+      const fullUrl = window.location.href + '?id=' + id;
+      document.getElementById('linkOutput').innerText = "分享連結: " + fullUrl;
+      document.getElementById('linkOutput').classList.remove('hidden');
+    }
+
+    // 渲染時間格子 (簡單範例：週一至週五)
+    function renderSlots() {
+      const container = document.getElementById('timeSlots');
+      const days = ['週一', '週二', '週三', '週四', '週五'];
+      days.forEach(day => {
+        const btn = document.createElement('button');
+        btn.innerText = day;
+        btn.className = "p-4 border rounded-xl hover:bg-blue-100 transition-colors";
+        btn.onclick = () => btn.classList.toggle('bg-blue-500 text-white');
+        container.appendChild(btn);
+      });
+    }
+
+    // 載入會議名稱
+    async function loadMeetingInfo() {
+      const resp = await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'getInfo', id: meetingId })
+      });
+      document.getElementById('meetingTitle').innerText = await resp.text();
+    }
+  </script>
+</body>
+</html>
