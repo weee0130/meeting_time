@@ -217,11 +217,14 @@
 
             const res = await callAPI({ action: 'getAllResponses', meetingId });
             if (res?.responses) {
-                // 將輸入與現有資料進行正規化比對 (去除空白，轉為字串)
-                const myRecord = res.responses.find(r => String(r.name).trim() === nameInput);
+                // 修正：更強健的比對邏輯
+                const myRecord = res.responses.find(r => {
+                    const dbName = String(r.name || "").trim();
+                    return dbName === nameInput;
+                });
                 
                 if (myRecord) {
-                    const dbPass = String(myRecord.password).trim();
+                    const dbPass = String(myRecord.password || "").trim();
                     if (dbPass !== passInput) {
                         btn.disabled = false;
                         btn.innerText = "進入系統";
@@ -229,7 +232,7 @@
                     }
                     // 密碼正確，載入舊資料
                     try {
-                        state.mySlots = JSON.parse(myRecord.slots);
+                        state.mySlots = typeof myRecord.slots === 'string' ? JSON.parse(myRecord.slots) : (myRecord.slots || {});
                     } catch(e) { state.mySlots = {}; }
                 } else {
                     // 全新帳號
@@ -279,13 +282,14 @@
             state.totalParticipants = responses.length;
             responses.forEach(r => {
                 try {
-                    const slots = JSON.parse(r.slots);
+                    const slots = typeof r.slots === 'string' ? JSON.parse(r.slots) : (r.slots || {});
+                    const rName = String(r.name || "").trim();
                     Object.keys(slots).forEach(s => {
                         if (slots[s]) {
                             if (!state.groupData[s]) state.groupData[s] = [];
                             // 如果是目前登入者，顯示最新記憶體狀態，而非資料庫舊狀態 (為了即時回饋)
-                            if (String(r.name).trim() === state.userName) return;
-                            state.groupData[s].push(r.name);
+                            if (rName === state.userName) return;
+                            state.groupData[s].push(rName);
                         }
                     });
                 } catch(e) {}
