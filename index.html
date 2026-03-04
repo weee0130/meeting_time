@@ -60,12 +60,16 @@
                     生成調查連結
                 </button>
                 <div id="link-result" class="mt-6 p-4 bg-green-50 rounded-xl border border-green-100 hidden">
-                    <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-green-200">
+                    <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-green-200 mb-3">
                         <code id="generated-url" class="flex-1 text-[10px] truncate text-slate-600"></code>
-                        <button onclick="copyLink()" class="p-2 text-green-600 hover:bg-green-50 rounded-md">
+                        <button onclick="copyLink()" class="p-2 text-green-600 hover:bg-green-50 rounded-md" title="複製連結">
                             <i data-lucide="copy" class="w-4 h-4"></i>
                         </button>
                     </div>
+                    <button id="open-link-btn" class="w-full bg-green-600 text-white py-2.5 rounded-lg font-bold hover:bg-green-700 transition-all text-xs flex items-center justify-center gap-2">
+                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                        直接前往會議頁面
+                    </button>
                 </div>
             </div>
         </div>
@@ -143,16 +147,24 @@
         };
 
         const hours = Array.from({ length: 16 }, (_, i) => i + 7);
-        const daysShort = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+        const daysShort = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
         
         const getWeekDates = () => {
             const dates = [];
             const today = new Date();
-            const startDate = new Date(today);
-            startDate.setDate(today.getDate() + (state.currentWeekOffset * 7));
+            
+            // 找出本週週一的日期
+            // getDay() 0=週日, 1=週一... 
+            // 如果是週日(0)，要退回 6 天才是週一
+            const currentDay = today.getDay();
+            const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+            
+            const monday = new Date(today);
+            monday.setDate(today.getDate() + diffToMonday + (state.currentWeekOffset * 7));
+            
             for (let i = 0; i < 7; i++) {
-                const d = new Date(startDate);
-                d.setDate(startDate.getDate() + i);
+                const d = new Date(monday);
+                d.setDate(monday.getDate() + i);
                 dates.push(d.toISOString().split('T')[0]);
             }
             return dates;
@@ -194,7 +206,12 @@
             if (res?.meetingId) {
                 const url = window.location.origin + window.location.pathname + '?id=' + res.meetingId;
                 document.getElementById('generated-url').innerText = url;
+                
+                const openBtn = document.getElementById('open-link-btn');
+                openBtn.onclick = () => { window.location.href = url; };
+                
                 document.getElementById('link-result').classList.remove('hidden');
+                lucide.createIcons();
             }
         }
 
@@ -345,11 +362,11 @@
 
             [myContainer, teamContainer].forEach(c => {
                 c.innerHTML += '<div class="w-[50px] border-r border-slate-200 bg-slate-50 sticky left-0 z-20"></div>';
-                currentWeekDates.forEach((dateStr) => {
+                currentWeekDates.forEach((dateStr, index) => {
                     const dateObj = new Date(dateStr);
                     c.innerHTML += `
                         <div class="text-center py-2 border-r border-slate-100 bg-slate-50">
-                            <div class="text-[9px] text-slate-400 font-bold uppercase">${daysShort[dateObj.getDay()]}</div>
+                            <div class="text-[9px] text-slate-400 font-bold uppercase">${daysShort[index]}</div>
                             <div class="text-[11px] font-black text-slate-700">${dateStr.split('-').slice(1).join('/')}</div>
                         </div>`;
                 });
