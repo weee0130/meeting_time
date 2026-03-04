@@ -86,7 +86,7 @@
             <div class="space-y-4">
                 <input id="login-name" type="text" placeholder="您的姓名" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
                 <input id="login-password" type="password" placeholder="簡易密碼 (保護您的資料)" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
-                <button onclick="handleLogin()" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition-all text-sm shadow-lg shadow-blue-100">
+                <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition-all text-sm shadow-lg shadow-blue-100">
                     進入系統
                 </button>
             </div>
@@ -148,17 +148,15 @@
             totalParticipants: 0,
             isDragging: false,
             dragMode: true,
-            currentWeekOffset: 0 // 0 表示本週 (今天開始)
+            currentWeekOffset: 0
         };
 
-        const hours = Array.from({ length: 16 }, (_, i) => i + 7); // 改為 07:00 - 22:00 較符合工作需求
+        const hours = Array.from({ length: 16 }, (_, i) => i + 7);
         const daysShort = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
         
-        // 取得動態日期：從今天開始往後推 7 天，並根據 offset 切換週
         const getWeekDates = () => {
             const dates = [];
             const today = new Date();
-            // offset 以 7 天為一單位
             const startDate = new Date(today);
             startDate.setDate(today.getDate() + (state.currentWeekOffset * 7));
 
@@ -208,29 +206,50 @@
         }
 
         async function handleLogin() {
-            state.userName = document.getElementById('login-name').value.trim();
-            state.password = document.getElementById('login-password').value.trim();
-            if (!state.userName || !state.password) return alert("請填寫姓名與密碼");
+            const nameInput = document.getElementById('login-name').value.trim();
+            const passInput = document.getElementById('login-password').value.trim();
+            const btn = document.getElementById('login-btn');
+
+            if (!nameInput || !passInput) return alert("請填寫姓名與密碼");
+            
+            btn.disabled = true;
+            btn.innerText = "驗證中...";
 
             const res = await callAPI({ action: 'getAllResponses', meetingId });
             if (res?.responses) {
-                const myRecord = res.responses.find(r => r.name === state.userName);
+                // 將輸入與現有資料進行正規化比對 (去除空白，轉為字串)
+                const myRecord = res.responses.find(r => String(r.name).trim() === nameInput);
+                
                 if (myRecord) {
-                    // 強化密碼比對邏輯，避免空格影響
-                    if (String(myRecord.password).trim() !== state.password) {
-                        return alert("此姓名已被登記，但密碼錯誤。請重新輸入或更換姓名。");
+                    const dbPass = String(myRecord.password).trim();
+                    if (dbPass !== passInput) {
+                        btn.disabled = false;
+                        btn.innerText = "進入系統";
+                        return alert("此姓名已被使用。請輸入正確密碼以修改時間，或是更換姓名。");
                     }
+                    // 密碼正確，載入舊資料
                     try {
                         state.mySlots = JSON.parse(myRecord.slots);
                     } catch(e) { state.mySlots = {}; }
+                } else {
+                    // 全新帳號
+                    state.mySlots = {};
                 }
+                
+                state.userName = nameInput;
+                state.password = passInput;
+
                 processGroupData(res.responses);
                 renderCalendars();
                 document.getElementById('survey-title').innerText = document.getElementById('auth-meeting-title').innerText;
                 document.getElementById('display-user-name').innerText = state.userName;
                 document.getElementById('nav-user-info').classList.remove('hidden');
                 showView('view-survey');
+            } else {
+                alert("無法連線至資料庫，請稍後再試。");
             }
+            btn.disabled = false;
+            btn.innerText = "進入系統";
         }
 
         function handleLogout() {
@@ -239,6 +258,8 @@
             state.password = '';
             state.mySlots = {};
             document.getElementById('nav-user-info').classList.add('hidden');
+            document.getElementById('login-name').value = '';
+            document.getElementById('login-password').value = '';
             showView('view-auth');
         }
 
@@ -262,12 +283,23 @@
                     Object.keys(slots).forEach(s => {
                         if (slots[s]) {
                             if (!state.groupData[s]) state.groupData[s] = [];
+                            // 如果是目前登入者，顯示最新記憶體狀態，而非資料庫舊狀態 (為了即時回饋)
+                            if (String(r.name).trim() === state.userName) return;
                             state.groupData[s].push(r.name);
                         }
                     });
                 } catch(e) {}
             });
-            document.getElementById('participant-count').innerText = `(${state.totalParticipants} 人已填)`;
+            
+            // 將目前使用者的最新選擇加入統計 (即時更新右側圖表)
+            Object.keys(state.mySlots).forEach(s => {
+                if (state.mySlots[s]) {
+                    if (!state.groupData[s]) state.groupData[s] = [];
+                    if (!state.groupData[s].includes(state.userName)) {
+                        state.groupData[s].push(state.userName);
+                    }
+                }
+            });
         }
 
         async function handleSave() {
@@ -297,6 +329,32 @@
             state.mySlots[key] = state.dragMode;
             if (state.dragMode) el.classList.add('slot-active');
             else el.classList.remove('slot-active');
+            
+            // 即時同步更新右側統計資料 (不需等待儲存)
+            updateTeamStatsFromMySlots();
+        }
+
+        function updateTeamStatsFromMySlots() {
+             // 重新掃描所有格子的統計數據
+             const teamCells = document.querySelectorAll('#team-calendar [data-team-key]');
+             teamCells.forEach(cell => {
+                 const key = cell.dataset.teamKey;
+                 const names = (state.groupData[key] || []).filter(n => n !== state.userName);
+                 if (state.mySlots[key]) names.push(state.userName);
+                 
+                 const count = names.length;
+                 const intensity = state.totalParticipants > 0 ? (count / state.totalParticipants) : 0;
+                 
+                 if (count > 0) {
+                     cell.style.backgroundColor = `rgba(34, 197, 94, ${0.2 + intensity * 0.8})`;
+                     cell.innerText = count;
+                     cell.onmouseenter = (e) => showTooltip(e, names);
+                 } else {
+                     cell.style.backgroundColor = 'transparent';
+                     cell.innerText = '';
+                     cell.onmouseenter = null;
+                 }
+             });
         }
 
         function renderCalendars() {
@@ -343,10 +401,13 @@
                             el.onmouseenter = () => { if (state.isDragging) toggleSlot(key, el); };
                             c.appendChild(el);
                         } else {
-                            const names = state.groupData[key] || [];
+                            const names = (state.groupData[key] || []).filter(n => n !== state.userName);
+                            if (state.mySlots[key]) names.push(state.userName);
+                            
                             const count = names.length;
                             const intensity = state.totalParticipants > 0 ? (count / state.totalParticipants) : 0;
                             el.className = `h-8 border-r border-b border-slate-50 flex items-center justify-center text-[10px] text-white font-bold`;
+                            el.dataset.teamKey = key; // 方便即時更新
                             if (count > 0) {
                                 el.style.backgroundColor = `rgba(34, 197, 94, ${0.2 + intensity * 0.8})`;
                                 el.innerText = count;
