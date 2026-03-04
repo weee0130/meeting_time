@@ -248,36 +248,32 @@
             btn.disabled = true;
             btn.innerText = "正在儲存...";
 
-            // 確保所有關鍵資訊都正確發送
             const payload = {
                 action: 'saveResponse',
                 meetingId: meetingId,
-                name: state.userName,
-                password: state.password,
+                name: state.userName.trim(),
+                password: state.password.trim(),
                 slots: JSON.stringify(state.mySlots)
             };
 
             const res = await callAPI(payload);
 
-            if (res && !res.error) {
-                alert("修改成功！資料已更新。");
-                // 儲存後重新抓取所有人資料以更新統計圖
+            if (res && (res.status === "success" || !res.error)) {
+                alert("儲存成功！");
                 const fresh = await callAPI({ action: 'getAllResponses', meetingId });
                 if (fresh && fresh.responses) {
                     processGroupData(fresh.responses);
                     renderCalendars();
                 }
             } else {
-                // 如果後端擋下，提示具體錯誤
-                const errorMsg = res?.error || "儲存失敗，請檢查網路或稍後再試";
-                alert("錯誤：" + errorMsg);
+                alert("錯誤：" + (res?.error || "儲存失敗"));
             }
             btn.disabled = false;
             btn.innerText = originalText;
         }
 
         function handleLogout() {
-            if(!confirm("確定要登出嗎？未儲存的更改將會遺失。")) return;
+            if(!confirm("確定要登出嗎？")) return;
             window.location.reload();
         }
 
@@ -299,7 +295,7 @@
                     Object.keys(slots).forEach(s => {
                         if (slots[s]) {
                             if (!state.groupData[s]) state.groupData[s] = [];
-                            if (rName !== state.userName) {
+                            if (rName !== state.userName.trim()) {
                                 state.groupData[s].push(rName);
                             }
                         }
@@ -331,6 +327,7 @@
                      cell.style.backgroundColor = `rgba(34, 197, 94, ${0.2 + intensity * 0.8})`;
                      cell.innerText = count;
                      cell.onmouseenter = (e) => showTooltip(e, names);
+                     cell.onmouseleave = () => hideTooltip();
                  } else {
                      cell.style.backgroundColor = 'transparent';
                      cell.innerText = '';
