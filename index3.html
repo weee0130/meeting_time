@@ -3,488 +3,296 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MeetingSync V7 - Stable Sync</title>
+    <title>MeetingSync V6 - Stable</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+TC:wght@400;700;900&display=swap');
-        
-        body { 
-            font-family: 'Inter', 'Noto Sans TC', sans-serif; 
-            background-color: #f8fafc; 
-            overflow: hidden;
-        } 
-        
-        .calendar-grid { display: grid; grid-template-columns: 45px repeat(7, 1fr); }
-        .slot { height: 32px; border-bottom: 1px solid #edf2f7; border-right: 1px solid #edf2f7; position: relative; transition: background-color 0.1s; }
-        .slot-active { background-color: #2563eb !important; }
-        .slot-hover:hover { background-color: #f1f5f9; }
-        
-        .custom-scroll::-webkit-scrollbar { width: 6px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        
-        .calendar-container {
-            max-width: 500px;
-            width: 100%;
-            height: 100%;
-            background: white;
-            border-radius: 16px;
-            border: 1px solid #e2e8f0;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-        }
-
-        .diet-btn { transition: all 0.2s; border: 2px solid transparent; }
-        .diet-btn.active { border-color: #2563eb; background-color: #eff6ff; color: #1e40af; }
-        
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f1f5f9; }
+        .calendar-grid { display: grid; grid-template-columns: 50px repeat(7, 1fr); }
+        .slot { height: 36px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; position: relative; }
+        .slot-active { background-color: #3b82f6 !important; }
+        .slot-interactive:hover { background-color: #dbeafe; }
         .no-select { user-select: none; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
-<body class="text-slate-800 h-screen flex flex-col">
+<body class="h-screen flex flex-col">
 
-    <!-- Toast 通知系統 -->
-    <div id="toast" class="fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl bg-slate-900 text-white text-sm font-bold shadow-2xl opacity-0 pointer-events-none transition-all duration-300 transform scale-90">
+    <!-- Toast 通知 -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full bg-slate-800 text-white text-sm font-bold shadow-xl opacity-0 transition-opacity duration-300 pointer-events-none">
         <span id="toast-msg"></span>
     </div>
 
     <!-- 導航列 -->
-    <nav class="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shrink-0">
+    <nav class="bg-white border-b px-6 py-3 flex justify-between items-center shrink-0 shadow-sm">
         <div class="flex items-center gap-2">
-            <div class="bg-blue-600 p-1.5 rounded-lg shadow-lg shadow-blue-200">
-                <i data-lucide="calendar-range" class="w-5 h-5 text-white"></i>
-            </div>
-            <h1 class="text-xl font-black text-slate-900 tracking-tight">MeetingSync <span class="text-blue-600">V7</span></h1>
+            <i data-lucide="calendar-check" class="text-blue-600 w-6 h-6"></i>
+            <span class="font-black text-xl tracking-tighter">MeetingSync <span class="text-blue-600">V6</span></span>
         </div>
-        <div id="nav-user-info" class="hidden flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
-                <i data-lucide="user" class="w-4 h-4 text-slate-500"></i>
-            </div>
-            <span id="display-user-name" class="text-sm font-bold text-slate-700"></span>
-        </div>
+        <div id="user-display" class="hidden text-sm font-bold bg-slate-100 px-4 py-1.5 rounded-full text-slate-600"></div>
     </nav>
 
-    <main class="flex-1 flex flex-col min-h-0 overflow-hidden">
+    <main class="flex-1 overflow-hidden flex flex-col">
         
-        <!-- 管理端：建立會議 -->
-        <div id="view-admin" class="m-auto max-w-md w-full bg-white rounded-3xl shadow-2xl border p-10 hidden">
-            <h2 class="text-2xl font-black mb-8 text-slate-900">發起新會議</h2>
-            <div class="space-y-5">
-                <div class="space-y-1">
-                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1">會議主題</label>
-                    <input id="new-title" type="text" placeholder="例如：專題進度討論" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-500 transition-all outline-none">
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1">補充說明</label>
-                    <textarea id="new-desc" placeholder="請大家標記可以出席的時間..." class="w-full px-4 py-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 h-24 focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
-                </div>
-                <div class="flex items-center justify-between p-4 bg-blue-50 rounded-xl">
+        <!-- 視圖：建立會議 -->
+        <div id="view-admin" class="m-auto max-w-md w-full p-8 bg-white rounded-3xl shadow-xl border hidden">
+            <h2 class="text-2xl font-black mb-6">發起新會議</h2>
+            <div class="space-y-4">
+                <input id="new-title" type="text" placeholder="會議名稱 (例如：小組討論)" class="w-full p-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
+                <textarea id="new-desc" placeholder="補充說明..." class="w-full p-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 h-24 focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+                <button onclick="createMeeting()" id="admin-btn" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-all">生成調查連結</button>
+                <div id="link-box" class="hidden mt-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                    <p class="text-xs font-bold text-blue-600 mb-2">邀請連結：</p>
                     <div class="flex items-center gap-2">
-                        <i data-lucide="utensils" class="w-4 h-4 text-blue-600"></i>
-                        <span class="text-sm font-bold text-blue-900">統計飲食需求</span>
-                    </div>
-                    <input type="checkbox" id="new-meal-toggle" class="w-5 h-5 accent-blue-600" checked>
-                </div>
-                <button onclick="handleCreateMeeting()" id="create-btn" class="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-lg hover:bg-blue-700 active:scale-[0.98] transition-all">生成邀請連結</button>
-                
-                <div id="link-result" class="hidden space-y-3 mt-8 p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
-                    <p class="text-[10px] font-black text-emerald-600 uppercase">邀請連結已就緒</p>
-                    <div class="flex items-center gap-2 bg-white p-3 rounded-xl border border-emerald-200">
-                        <code id="generated-url" class="text-xs truncate flex-1 text-slate-600 font-mono"></code>
-                        <button onclick="copyLink()" class="p-2 hover:bg-emerald-50 rounded-lg text-emerald-600 transition-colors"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                        <code id="share-url" class="text-xs truncate flex-1 text-slate-500"></code>
+                        <button onclick="copyUrl()" class="text-blue-600 p-1"><i data-lucide="copy" class="w-4 h-4"></i></button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 驗證端：進入會議 -->
-        <div id="view-auth" class="m-auto max-w-sm w-full bg-white rounded-3xl shadow-2xl border p-10 hidden text-center">
-            <h2 id="auth-meeting-title" class="text-2xl font-black text-slate-900 mb-2">載入中...</h2>
-            <p class="text-sm text-slate-400 mb-8">請輸入您的基本資料以進入調查</p>
-            <div class="space-y-4 text-left">
-                <input id="login-name" type="text" placeholder="您的姓名" class="w-full px-5 py-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
-                <input id="login-password" type="password" placeholder="個人識別密碼 (供日後修改)" class="w-full px-5 py-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
-                <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-lg hover:bg-blue-700 transition-all">進入調查系統</button>
+        <!-- 視圖：身分驗證 -->
+        <div id="view-auth" class="m-auto max-w-sm w-full p-8 bg-white rounded-3xl shadow-xl border hidden text-center">
+            <h2 id="auth-title" class="text-2xl font-black mb-2">載入中...</h2>
+            <p class="text-slate-400 text-sm mb-8">請輸入姓名與密碼以進入</p>
+            <div class="space-y-4">
+                <input id="auth-name" type="text" placeholder="您的姓名" class="w-full p-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 outline-none">
+                <input id="auth-pass" type="password" placeholder="個人識別密碼" class="w-full p-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 outline-none">
+                <button onclick="login()" id="login-btn" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700">進入系統</button>
             </div>
         </div>
 
-        <!-- 主界面：填寫與結果 -->
-        <div id="view-survey" class="flex-1 flex flex-col min-h-0 hidden p-6 gap-6">
-            <!-- 標題資訊 -->
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 px-4">
+        <!-- 視圖：主調查介面 -->
+        <div id="view-main" class="flex-1 flex flex-col hidden p-4 lg:p-8 gap-6 min-h-0">
+            <div class="flex justify-between items-end">
                 <div>
-                    <h2 id="survey-title" class="text-3xl font-black text-slate-900 leading-tight"></h2>
-                    <p id="survey-desc" class="text-sm text-slate-500 mt-1 max-w-lg"></p>
+                    <h2 id="main-title" class="text-3xl font-black text-slate-800"></h2>
+                    <p id="main-desc" class="text-slate-500 text-sm mt-1"></p>
                 </div>
-                <div class="flex items-center gap-2 bg-white border border-slate-200 p-1 rounded-2xl shadow-sm">
-                    <button onclick="changeWeek(-1)" class="p-2.5 hover:bg-slate-50 rounded-xl transition-colors"><i data-lucide="chevron-left" class="w-5 h-5 text-slate-600"></i></button>
-                    <span id="week-display" class="text-sm font-black px-6 min-w-[120px] text-center text-slate-700">本週</span>
-                    <button onclick="changeWeek(1)" class="p-2.5 hover:bg-slate-50 rounded-xl transition-colors"><i data-lucide="chevron-right" class="w-5 h-5 text-slate-600"></i></button>
-                </div>
-            </div>
-
-            <!-- 日曆區域 -->
-            <div class="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 items-center justify-center overflow-hidden">
-                <!-- 個人填寫區 -->
-                <div class="calendar-container">
-                    <div class="px-5 py-4 bg-slate-900 text-white text-[11px] font-black flex items-center justify-between shrink-0 tracking-widest uppercase">
-                        <div class="flex items-center gap-2"><i data-lucide="mouse-pointer-click" class="w-4 h-4 text-blue-400"></i> 個人標記時間</div>
-                        <div id="save-status" class="hidden flex items-center gap-2"><span class="w-2 h-2 bg-blue-400 rounded-full animate-ping"></span> 同步中</div>
-                    </div>
-                    <div class="flex-1 overflow-auto custom-scroll">
-                        <div id="my-calendar" class="calendar-grid no-select" oncontextmenu="return false;"></div>
-                    </div>
-                </div>
-
-                <!-- 團隊空檔區 -->
-                <div class="calendar-container">
-                    <div class="px-5 py-4 bg-blue-700 text-white text-[11px] font-black flex items-center justify-between shrink-0 tracking-widest uppercase">
-                        <div class="flex items-center gap-2"><i data-lucide="users" class="w-4 h-4 text-blue-200"></i> 團隊空檔熱圖</div>
-                        <span id="total-count-badge" class="bg-blue-800/50 px-3 py-1 rounded-full text-[10px]">0 人參與</span>
-                    </div>
-                    <div class="flex-1 overflow-auto custom-scroll">
-                        <div id="team-calendar" class="calendar-grid no-select"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 下方控制區 -->
-            <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-center gap-6 shrink-0 max-w-5xl mx-auto w-full mb-4">
-                <div id="meal-survey-section" class="flex-1 flex items-center gap-6 hidden">
-                    <span class="text-xs font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">飲食確認</span>
-                    <div class="flex gap-2 w-full">
-                        <button id="btn-meat" onclick="setDiet('葷食')" class="diet-btn flex-1 py-4 rounded-xl text-sm font-bold bg-slate-50 text-slate-600 flex items-center justify-center gap-2">
-                            <i data-lucide="beef" class="w-4 h-4"></i> 葷食
-                        </button>
-                        <button id="btn-veg" onclick="setDiet('素食')" class="diet-btn flex-1 py-4 rounded-xl text-sm font-bold bg-slate-50 text-slate-600 flex items-center justify-center gap-2">
-                            <i data-lucide="leaf" class="w-4 h-4"></i> 素食
-                        </button>
-                    </div>
-                </div>
-                <button onclick="handleFinalSave()" id="save-btn" class="w-full md:w-80 bg-blue-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-lg shadow-blue-200">
-                    <i data-lucide="cloud-upload" class="w-6 h-6"></i> 儲存我的空檔
+                <button onclick="saveData()" id="save-btn" class="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center gap-2">
+                    <i data-lucide="save" class="w-4 h-4"></i> 儲存我的空檔
                 </button>
+            </div>
+
+            <div class="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
+                <!-- 左側：個人填寫 -->
+                <div class="flex-1 bg-white rounded-2xl shadow-sm border flex flex-col overflow-hidden">
+                    <div class="bg-slate-800 text-white px-4 py-2 text-xs font-bold flex items-center gap-2">
+                        <i data-lucide="user" class="w-3 h-3"></i> 個人填寫區 (點擊或拖曳)
+                    </div>
+                    <div class="flex-1 overflow-auto custom-scroll no-select" id="grid-personal-container">
+                        <div id="grid-personal" class="calendar-grid"></div>
+                    </div>
+                </div>
+
+                <!-- 右側：團隊統計 -->
+                <div class="flex-1 bg-white rounded-2xl shadow-sm border flex flex-col overflow-hidden">
+                    <div class="bg-blue-600 text-white px-4 py-2 text-xs font-bold flex items-center justify-between">
+                        <div class="flex items-center gap-2"><i data-lucide="users" class="w-3 h-3"></i> 團隊空檔統計</div>
+                        <span id="stat-count" class="opacity-80">0 人已填寫</span>
+                    </div>
+                    <div class="flex-1 overflow-auto custom-scroll no-select">
+                        <div id="grid-team" class="calendar-grid"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
 
-    <!-- 工具提示 (熱圖資訊) -->
-    <div id="tooltip" class="fixed z-[9999] pointer-events-none bg-slate-900/95 backdrop-blur-md text-white px-5 py-4 rounded-2xl shadow-2xl text-[11px] hidden border border-slate-700 transform -translate-x-1/2 -translate-y-full mb-4 min-w-[140px]">
-        <div id="tooltip-names" class="flex flex-col gap-2"></div>
-    </div>
-
     <script>
-        // 核心配置：請務必將此網址替換為您的 Google Apps Script 佈署連結
         const API_URL = 'https://script.google.com/macros/s/AKfycbxogvFVUYKbBaHqzXWFO714dhcEmjgt1r9IkwUeNtUxwYlW4eYs0IrQEVdLp7zBb_yn/exec';
         const meetingId = new URLSearchParams(window.location.search).get('id');
-        
+
         let state = {
-            userName: '', password: '', diet: null,
-            mySlots: {}, groupData: {}, meetingInfo: null,
-            totalParticipants: 0, isDragging: false, dragMode: true, currentWeekOffset: 0,
-            allResponses: []
+            name: '', pass: '',
+            mySlots: {}, teamData: {},
+            isDragging: false, dragValue: false
         };
 
-        const hours = Array.from({ length: 15 }, (_, i) => i + 8); 
-        const daysShort = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+        const hours = Array.from({ length: 15 }, (_, i) => i + 8); // 08:00 - 22:00
+        const days = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
 
         window.onload = async () => {
             lucide.createIcons();
             if (meetingId) {
-                showView('view-auth');
-                const res = await callAPI({ action: 'getMeetingInfo', meetingId });
-                if (res && !res.error) {
-                    state.meetingInfo = res;
-                    document.getElementById('auth-meeting-title').innerText = res.title;
-                } else {
-                    document.getElementById('auth-meeting-title').innerText = "找不到會議";
-                }
+                switchView('view-auth');
+                const info = await callAPI({ action: 'getMeetingInfo', meetingId });
+                document.getElementById('auth-title').innerText = info?.title || "未知的會議";
             } else {
-                showView('view-admin');
+                switchView('view-admin');
             }
         };
 
         async function callAPI(data) {
             try {
-                const response = await fetch(API_URL, { 
-                    method: 'POST', 
-                    body: JSON.stringify(data) 
-                });
-                return await response.json();
+                const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(data) });
+                return await res.json();
             } catch (e) {
-                console.error("API Error:", e);
+                console.error(e);
                 return { error: true };
             }
         }
 
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            document.getElementById('toast-msg').innerText = msg;
-            toast.classList.replace('opacity-0', 'opacity-100');
-            toast.classList.replace('scale-90', 'scale-100');
-            setTimeout(() => {
-                toast.classList.replace('opacity-100', 'opacity-0');
-                toast.classList.replace('scale-100', 'scale-90');
-            }, 3000);
-        }
-
-        function showView(id) {
-            ['view-admin', 'view-auth', 'view-survey'].forEach(v => document.getElementById(v).classList.add('hidden'));
+        function switchView(id) {
+            ['view-admin', 'view-auth', 'view-main'].forEach(v => document.getElementById(v).classList.add('hidden'));
             document.getElementById(id).classList.remove('hidden');
-            if (id === 'view-survey' && state.meetingInfo?.hasMeal) {
-                document.getElementById('meal-survey-section').classList.remove('hidden');
+        }
+
+        function toast(msg) {
+            const el = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            el.style.opacity = '1';
+            setTimeout(() => el.style.opacity = '0', 3000);
+        }
+
+        async function createMeeting() {
+            const title = document.getElementById('new-title').value;
+            if (!title) return toast("請輸入標題");
+            document.getElementById('admin-btn').disabled = true;
+            const res = await callAPI({ action: 'createMeeting', title, description: document.getElementById('new-desc').value });
+            if (res.meetingId) {
+                const url = window.location.origin + window.location.pathname + '?id=' + res.meetingId;
+                document.getElementById('share-url').innerText = url;
+                document.getElementById('link-box').classList.remove('hidden');
+                toast("會議建立成功！");
             }
         }
 
-        async function handleLogin() {
-            const name = document.getElementById('login-name').value.trim();
-            const pass = document.getElementById('login-password').value.trim();
-            if (!name || !pass) return showToast("姓名與密碼為必填");
-            
-            const btn = document.getElementById('login-btn');
-            btn.innerText = "驗證中...";
-            btn.disabled = true;
+        async function login() {
+            state.name = document.getElementById('auth-name').value.trim();
+            state.pass = document.getElementById('auth-pass').value.trim();
+            if (!state.name || !state.pass) return toast("請填寫姓名與密碼");
 
+            document.getElementById('login-btn').innerText = "驗證中...";
             const res = await callAPI({ action: 'getAllResponses', meetingId });
-            if (res.error) {
-                showToast("同步失敗，請檢查網路連結");
-                btn.disabled = false;
-                btn.innerText = "進入調查系統";
-                return;
-            }
-
-            const mine = res.responses?.find(r => r.name === name);
-            if (mine && mine.password && String(mine.password) !== String(pass)) {
-                showToast("密碼錯誤！請輸入您當初設定的密碼");
-                btn.disabled = false;
-                btn.innerText = "進入調查系統";
-                return;
-            }
-
-            state.userName = name;
-            state.password = pass;
-            state.allResponses = res.responses || [];
-            document.getElementById('display-user-name').innerText = name;
-            document.getElementById('nav-user-info').classList.remove('hidden');
             
-            if (mine) {
-                if (mine.diet) setDiet(mine.diet);
-                try { state.mySlots = JSON.parse(mine.slots || "{}"); } catch(e){}
-            }
-
-            initCalendars();
-            updateGroupVisuals(state.allResponses);
-            showView('view-survey');
-            document.getElementById('survey-title').innerText = state.meetingInfo.title;
-            document.getElementById('survey-desc').innerText = state.meetingInfo.description;
-            lucide.createIcons();
-        }
-
-        async function handleFinalSave() {
-            if (state.meetingInfo.hasMeal && !state.diet) return showToast("請選擇您的飲食需求");
-            
-            const btn = document.getElementById('save-btn');
-            const status = document.getElementById('save-status');
-            
-            btn.disabled = true;
-            btn.innerText = "正在儲存...";
-            status.classList.remove('hidden');
-
-            const res = await callAPI({
-                action: 'saveResponse', 
-                meetingId, 
-                name: state.userName, 
-                password: state.password,
-                diet: state.diet || '不需要', 
-                slots: JSON.stringify(state.mySlots)
-            });
-
-            if (res.success) {
-                showToast("資料已成功同步到雲端");
-                const refresh = await callAPI({ action: 'getAllResponses', meetingId });
-                if (refresh.responses) {
-                    state.allResponses = refresh.responses;
-                    updateGroupVisuals(state.allResponses);
+            if (res.responses) {
+                const mine = res.responses.find(r => r.name === state.name);
+                if (mine && String(mine.password) !== String(state.pass)) {
+                    toast("密碼錯誤");
+                    document.getElementById('login-btn').innerText = "進入系統";
+                    return;
                 }
-            } else {
-                showToast("同步出錯，請再試一次");
+                if (mine) state.mySlots = JSON.parse(mine.slots || "{}");
+                
+                const info = await callAPI({ action: 'getMeetingInfo', meetingId });
+                document.getElementById('main-title').innerText = info.title;
+                document.getElementById('main-desc').innerText = info.description || "";
+                document.getElementById('user-display').innerText = state.name;
+                document.getElementById('user-display').classList.remove('hidden');
+                
+                renderGrids();
+                processTeamData(res.responses);
+                switchView('view-main');
             }
-            
-            btn.disabled = false;
-            btn.innerHTML = `<i data-lucide="cloud-upload" class="w-6 h-6"></i> 儲存我的空檔`;
-            status.classList.add('hidden');
-            lucide.createIcons();
         }
 
-        function updateGroupVisuals(responses) {
-            state.groupData = {};
-            state.totalParticipants = responses.length;
-            document.getElementById('total-count-badge').innerText = `${state.totalParticipants} 人參與回覆`;
-            
-            responses.forEach(r => {
-                let s = {};
-                try { s = JSON.parse(r.slots || "{}"); } catch(e){}
-                Object.keys(s).forEach(sid => {
-                    if (!state.groupData[sid]) state.groupData[sid] = [];
-                    state.groupData[sid].push({ name: r.name, diet: r.diet });
-                });
-            });
+        function renderGrids() {
+            const pGrid = document.getElementById('grid-personal');
+            const tGrid = document.getElementById('grid-team');
+            pGrid.innerHTML = tGrid.innerHTML = '';
 
-            const dates = getWeekDates();
-            hours.forEach(h => {
-                dates.forEach(d => {
-                    const sid = `${d}_${h}`;
-                    const cell = document.getElementById(`team-calendar-${sid}`);
-                    if (!cell) return;
-                    
-                    const list = state.groupData[sid] || [];
-                    const ratio = state.totalParticipants > 0 ? list.length / state.totalParticipants : 0;
-                    
-                    if (list.length > 0) {
-                        cell.style.backgroundColor = `rgba(37, 99, 235, ${0.05 + (ratio * 0.9)})`;
-                        cell.innerHTML = `<span class="absolute inset-0 flex items-center justify-center text-[10px] font-black ${ratio > 0.5 ? 'text-white' : 'text-blue-600'}">${list.length}</span>`;
-                    } else {
-                        cell.style.backgroundColor = '';
-                        cell.innerHTML = '';
-                    }
-                });
-            });
-        }
-
-        function initCalendars() {
-            renderGrid('my-calendar', true);
-            renderGrid('team-calendar', false);
-        }
-
-        function renderGrid(containerId, isInteractive) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = '';
-            const dates = getWeekDates();
-            
             // Header
-            container.appendChild(createCell('', 'slot bg-slate-50 sticky top-0 z-10 border-b-2 border-slate-200'));
-            dates.forEach((date, i) => {
-                const cell = createCell('', 'slot bg-slate-50 flex flex-col items-center justify-center sticky top-0 z-10 border-b-2 border-slate-200');
-                cell.innerHTML = `<span class="text-[8px] text-slate-400 font-black">${daysShort[i]}</span><span class="text-xs font-black text-slate-700">${date.split('-')[2]}</span>`;
-                container.appendChild(cell);
+            [pGrid, tGrid].forEach(g => {
+                g.appendChild(createCell('', 'slot bg-slate-50 sticky top-0 z-10 font-bold text-[10px] flex items-center justify-center'));
+                days.forEach(d => g.appendChild(createCell(d, 'slot bg-slate-50 sticky top-0 z-10 font-bold text-xs flex items-center justify-center')));
             });
 
             // Rows
-            hours.forEach(hour => {
-                container.appendChild(createCell(`${hour}:00`, 'slot text-[10px] text-slate-400 font-bold flex items-center justify-center bg-slate-50 border-r-2 border-slate-200'));
-                dates.forEach(date => {
-                    const sid = `${date}_${hour}`;
-                    const cell = createCell('', `slot ${isInteractive ? 'slot-hover cursor-pointer' : ''}`);
-                    cell.id = `${containerId}-${sid}`;
-                    if (isInteractive) {
-                        if (state.mySlots[sid]) cell.classList.add('slot-active');
-                        cell.onmousedown = (e) => { 
-                            if (e.button !== 0) return;
-                            state.isDragging = true; 
-                            state.dragMode = !cell.classList.contains('slot-active'); 
-                            toggleSlot(sid, cell); 
-                        };
-                        cell.onmouseenter = () => { if (state.isDragging) toggleSlot(sid, cell); };
-                    } else {
-                        cell.onmouseenter = (e) => showTooltip(e, sid);
-                        cell.onmouseleave = hideTooltip;
-                    }
-                    container.appendChild(cell);
-                });
+            hours.forEach(h => {
+                const timeStr = `${h}:00`;
+                pGrid.appendChild(createCell(timeStr, 'slot bg-slate-50 text-[10px] text-slate-400 flex items-center justify-center'));
+                tGrid.appendChild(createCell(timeStr, 'slot bg-slate-50 text-[10px] text-slate-400 flex items-center justify-center'));
+                
+                for(let d=0; d<7; d++) {
+                    const sid = `${d}-${h}`;
+                    
+                    // Personal Cell
+                    const pCell = createCell('', 'slot slot-interactive cursor-pointer');
+                    pCell.id = `p-${sid}`;
+                    if (state.mySlots[sid]) pCell.classList.add('slot-active');
+                    pCell.onmousedown = () => { state.isDragging = true; state.dragValue = !state.mySlots[sid]; toggleSlot(sid); };
+                    pCell.onmouseenter = () => { if(state.isDragging) toggleSlot(sid); };
+                    pGrid.appendChild(pCell);
+
+                    // Team Cell
+                    const tCell = createCell('', 'slot');
+                    tCell.id = `t-${sid}`;
+                    tGrid.appendChild(tCell);
+                }
             });
         }
 
-        function toggleSlot(id, el) {
-            if (state.dragMode) { state.mySlots[id] = true; el.classList.add('slot-active'); }
-            else { delete state.mySlots[id]; el.classList.remove('slot-active'); }
+        function toggleSlot(sid) {
+            const el = document.getElementById(`p-${sid}`);
+            if (state.dragValue) {
+                state.mySlots[sid] = true;
+                el.classList.add('slot-active');
+            } else {
+                delete state.mySlots[sid];
+                el.classList.remove('slot-active');
+            }
         }
 
-        function createCell(text, className) {
+        function createCell(txt, cls) {
             const div = document.createElement('div');
-            div.className = className;
-            div.innerText = text;
+            div.className = cls;
+            div.innerText = txt;
             return div;
         }
 
-        function setDiet(type) {
-            state.diet = type;
-            document.getElementById('btn-meat').classList.toggle('active', type === '葷食');
-            document.getElementById('btn-veg').classList.toggle('active', type === '素食');
-        }
-
-        function getWeekDates() {
-            const dates = [];
-            const today = new Date();
-            const diff = today.getDay() === 0 ? -6 : 1 - today.getDay();
-            const mon = new Date(today);
-            mon.setDate(today.getDate() + diff + (state.currentWeekOffset * 7));
-            for (let i = 0; i < 7; i++) {
-                const d = new Date(mon); d.setDate(mon.getDate() + i);
-                dates.push(d.toISOString().split('T')[0]);
-            }
-            return dates;
-        }
-
-        function changeWeek(offset) {
-            state.currentWeekOffset += offset;
-            document.getElementById('week-display').innerText = state.currentWeekOffset === 0 ? '本週' : `第 ${state.currentWeekOffset} 週`;
-            initCalendars();
-            updateGroupVisuals(state.allResponses);
-        }
-
-        function showTooltip(e, sid) {
-            const users = state.groupData[sid];
-            if (!users) return;
-            const tt = document.getElementById('tooltip');
-            const list = document.getElementById('tooltip-names');
-            list.innerHTML = `<div class="font-black border-b border-slate-700 mb-2 pb-1 text-blue-400 uppercase tracking-widest text-[9px]">可出席名單 (${users.length})</div>`;
-            users.forEach(u => {
-                const s = document.createElement('div');
-                s.className = "flex justify-between items-center gap-4";
-                s.innerHTML = `<span class="font-bold">${u.name}</span><span class="opacity-50 text-[9px]">${u.diet}</span>`;
-                list.appendChild(s);
+        function processTeamData(responses) {
+            const counts = {};
+            responses.forEach(r => {
+                const s = JSON.parse(r.slots || "{}");
+                Object.keys(s).forEach(sid => {
+                    counts[sid] = (counts[sid] || 0) + 1;
+                });
             });
-            tt.classList.remove('hidden');
-            tt.style.left = e.pageX + 'px'; tt.style.top = (e.pageY - 10) + 'px';
+            
+            const total = responses.length;
+            document.getElementById('stat-count').innerText = `${total} 人已填寫`;
+
+            Object.keys(counts).forEach(sid => {
+                const cell = document.getElementById(`t-${sid}`);
+                if (cell) {
+                    const ratio = counts[sid] / total;
+                    cell.style.backgroundColor = `rgba(59, 130, 246, ${ratio})`;
+                    cell.innerHTML = `<span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold ${ratio > 0.5 ? 'text-white' : 'text-blue-600'}">${counts[sid]}</span>`;
+                }
+            });
         }
 
-        function hideTooltip() { document.getElementById('tooltip').classList.add('hidden'); }
-
-        async function handleCreateMeeting() {
-            const title = document.getElementById('new-title').value.trim();
-            const desc = document.getElementById('new-desc').value.trim();
-            if (!title) return showToast("會議標題為必填內容");
-            
-            const btn = document.getElementById('create-btn');
-            btn.innerText = "正在建立連結...";
+        async function saveData() {
+            const btn = document.getElementById('save-btn');
             btn.disabled = true;
-
-            const res = await callAPI({ 
-                action: 'createMeeting', 
-                title, 
-                description: desc, 
-                hasMeal: document.getElementById('new-meal-toggle').checked 
-            });
+            btn.innerText = "儲存中...";
             
-            if (res.meetingId) {
-                const url = window.location.origin + window.location.pathname + '?id=' + res.meetingId;
-                document.getElementById('generated-url').innerText = url;
-                document.getElementById('link-result').classList.remove('hidden');
-                showToast("會議已建立成功！");
-            } else {
-                showToast("建立失敗，請稍後再試");
-            }
-            btn.innerText = "生成邀請連結";
-            btn.disabled = false;
-        }
+            const res = await callAPI({
+                action: 'saveResponse',
+                meetingId,
+                name: state.name,
+                password: state.pass,
+                slots: JSON.stringify(state.mySlots)
+            });
 
-        function copyLink() {
-            const url = document.getElementById('generated-url').innerText;
-            navigator.clipboard.writeText(url).then(() => showToast("連結已複製到剪貼簿"));
+            if (res.status === 'success') {
+                toast("儲存成功！");
+                const refresh = await callAPI({ action: 'getAllResponses', meetingId });
+                processTeamData(refresh.responses);
+            }
+            btn.disabled = false;
+            btn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> 儲存我的空檔`;
+            lucide.createIcons();
         }
 
         window.onmouseup = () => state.isDragging = false;
+        function copyUrl() {
+            const txt = document.getElementById('share-url').innerText;
+            navigator.clipboard.writeText(txt).then(() => toast("連結已複製"));
+        }
     </script>
 </body>
 </html>
