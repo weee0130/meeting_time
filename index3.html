@@ -3,31 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MeetingSync V5</title>
+    <title>MeetingSync V6 - Warm Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-        body { font-family: 'Inter', sans-serif; overflow: hidden; } 
-        .calendar-grid { display: grid; grid-template-columns: 45px repeat(7, 1fr); }
-        .slot { height: 26px; border-bottom: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9; position: relative; transition: all 0.1s; }
-        .slot-active { background-color: #3b82f6 !important; }
-        .slot-hover:hover { background-color: #eff6ff; }
-        .custom-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        body { 
+            font-family: 'Noto Sans TC', sans-serif; 
+            overflow: hidden; 
+            background-color: #fdfaf7; /* 暖米色背景 */
+        } 
+        .calendar-grid { display: grid; grid-template-columns: 40px repeat(7, 1fr); }
+        .slot { height: 24px; border-bottom: 1px solid #f3ece4; border-right: 1px solid #f3ece4; position: relative; transition: all 0.1s; }
+        .slot-active { background-color: #f59e0b !important; } /* 琥珀色 */
+        .slot-hover:hover { background-color: #fffbeb; }
         
-        /* 限制日曆尺寸在 720x720 以內 */
+        .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #e7d8c9; border-radius: 10px; }
+        
+        /* 限制日曆尺寸在 500x500 以內 */
         .calendar-container {
-            max-width: 720px;
-            max-height: 720px;
+            max-width: 500px;
+            max-height: 500px;
             width: 100%;
             height: 100%;
             margin: 0 auto;
         }
 
-        .diet-btn { transition: all 0.2s ease; border-width: 2px; }
-        .diet-btn.active-meat { background-color: #ef4444; color: white; border-color: #ef4444; }
-        .diet-btn.active-veg { background-color: #10b981; color: white; border-color: #10b981; }
+        .diet-btn { transition: all 0.2s ease; border-width: 2px; border-color: #f3ece4; }
+        .diet-btn.active-meat { background-color: #d97706; color: white; border-color: #d97706; }
+        .diet-btn.active-veg { background-color: #059669; color: white; border-color: #059669; }
         
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
@@ -35,51 +40,50 @@
             75% { transform: translateX(5px); }
         }
         .error-shake { animation: shake 0.2s ease-in-out 0s 2; border-color: #ef4444 !important; }
+        .no-select { user-select: none; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 h-screen flex flex-col">
+<body class="text-stone-800 h-screen flex flex-col">
 
     <!-- 訊息提示 -->
-    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold shadow-2xl opacity-0 pointer-events-none transition-all">
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl bg-stone-800 text-white text-sm font-bold shadow-2xl opacity-0 pointer-events-none transition-all">
         <span id="toast-msg"></span>
     </div>
 
     <!-- 導航欄 -->
-    <nav class="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center shrink-0">
-        <h1 class="text-xl font-black text-blue-600 flex items-center gap-2 cursor-pointer" onclick="window.location.reload()">
-            <i data-lucide="calendar-check" class="w-6 h-6"></i> MeetingSync
+    <nav class="bg-white/80 backdrop-blur-md border-b border-orange-100 px-6 py-3 flex justify-between items-center shrink-0">
+        <h1 class="text-xl font-black text-amber-600 flex items-center gap-2 cursor-pointer" onclick="window.location.reload()">
+            <i data-lucide="coffee" class="w-6 h-6"></i> MeetingSync
         </h1>
         <div id="nav-user-info" class="hidden flex items-center gap-3">
-            <span id="display-user-name" class="text-xs font-black bg-slate-100 px-4 py-1.5 rounded-full border border-slate-200 shadow-sm"></span>
+            <span id="display-user-name" class="text-xs font-bold bg-orange-50 text-orange-800 px-4 py-1.5 rounded-full border border-orange-200 shadow-sm"></span>
         </div>
     </nav>
 
     <main class="flex-1 flex flex-col min-h-0 overflow-hidden">
         <!-- 發起會議頁面 -->
-        <div id="view-admin" class="m-auto max-w-md w-full bg-white rounded-3xl shadow-xl p-8 border border-slate-200 hidden animate-in fade-in zoom-in duration-300">
-            <h2 class="text-2xl font-black mb-6 flex items-center gap-2 text-slate-800"><i data-lucide="sparkles" class="text-blue-500"></i> 發起新會議</h2>
+        <div id="view-admin" class="m-auto max-w-md w-full bg-white rounded-[2rem] shadow-2xl p-8 border border-orange-100 hidden animate-in fade-in zoom-in duration-300">
+            <h2 class="text-2xl font-black mb-6 flex items-center gap-2 text-stone-800"><i data-lucide="sparkles" class="text-amber-500"></i> 發起溫馨會議</h2>
             <div class="space-y-4">
-                <input id="new-title" type="text" placeholder="會議名稱 (例如: 專案進度同步)" class="w-full px-5 py-3.5 rounded-2xl border border-slate-200 text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                <textarea id="new-desc" placeholder="會議備註與細節..." class="w-full px-5 py-3.5 rounded-2xl border border-slate-200 text-sm bg-slate-50 h-24 outline-none focus:ring-2 focus:ring-blue-500 transition-all"></textarea>
-                <div class="flex items-center justify-between p-4 bg-orange-50 rounded-2xl border border-orange-100">
+                <input id="new-title" type="text" placeholder="會議名稱" class="w-full px-5 py-3.5 rounded-2xl border border-stone-100 text-sm bg-stone-50 outline-none focus:ring-2 focus:ring-amber-400 transition-all">
+                <textarea id="new-desc" placeholder="會議備註..." class="w-full px-5 py-3.5 rounded-2xl border border-stone-100 text-sm bg-stone-50 h-24 outline-none focus:ring-2 focus:ring-amber-400 transition-all"></textarea>
+                <div class="flex items-center justify-between p-4 bg-orange-50/50 rounded-2xl border border-orange-100">
                     <div class="flex items-center gap-2">
                         <i data-lucide="utensils" class="w-4 h-4 text-orange-600"></i>
-                        <span class="text-sm font-bold text-orange-800">統計用餐需求</span>
+                        <span class="text-sm font-bold text-stone-700">統計用餐需求</span>
                     </div>
-                    <input type="checkbox" id="new-meal-toggle" class="w-5 h-5 rounded cursor-pointer" checked>
+                    <input type="checkbox" id="new-meal-toggle" class="w-5 h-5 accent-amber-500 rounded cursor-pointer" checked>
                 </div>
-                <button onclick="handleCreateMeeting()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-base hover:bg-slate-800 active:scale-[0.98] transition-all shadow-lg">生成會議連結</button>
+                <button onclick="handleCreateMeeting()" class="w-full bg-amber-600 text-white py-4 rounded-2xl font-black text-base hover:bg-amber-700 active:scale-[0.98] transition-all shadow-lg shadow-amber-200">生成會議連結</button>
                 
                 <div id="link-result" class="hidden space-y-3 mt-6 animate-in slide-in-from-bottom-4">
-                    <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-3">
-                        <p class="text-xs font-bold text-blue-700">會議已準備就緒！</p>
-                        <div class="flex items-center gap-2 bg-white p-2 rounded-xl border border-blue-200">
-                            <code id="generated-url" class="text-[11px] truncate flex-1 px-2 text-slate-600"></code>
-                            <button onclick="copyLink()" class="p-2 hover:bg-slate-100 rounded-lg text-blue-600 transition-colors" title="複製連結"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                    <div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 space-y-3">
+                        <div class="flex items-center gap-2 bg-white p-2 rounded-xl border border-amber-200">
+                            <code id="generated-url" class="text-[11px] truncate flex-1 px-2 text-stone-600"></code>
+                            <button onclick="copyLink()" class="p-2 hover:bg-amber-100 rounded-lg text-amber-600 transition-colors"><i data-lucide="copy" class="w-4 h-4"></i></button>
                         </div>
-                        <!-- 直接前往按鈕 -->
-                        <button id="go-to-link" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black text-sm hover:bg-blue-700 flex items-center justify-center gap-2 shadow-md">
-                            直接前往會議 <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                        <button id="go-to-link" class="w-full bg-stone-800 text-white py-3 rounded-xl font-black text-sm hover:bg-stone-900 flex items-center justify-center gap-2 shadow-md">
+                            直接前往連結 <i data-lucide="external-link" class="w-4 h-4"></i>
                         </button>
                     </div>
                 </div>
@@ -87,22 +91,16 @@
         </div>
 
         <!-- 登入頁面 -->
-        <div id="view-auth" class="m-auto max-w-sm w-full bg-white rounded-3xl shadow-xl p-8 border border-slate-200 hidden text-center">
-            <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <div id="view-auth" class="m-auto max-w-sm w-full bg-white rounded-[2rem] shadow-2xl p-8 border border-orange-100 hidden text-center">
+            <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <i data-lucide="user-check" class="w-8 h-8"></i>
             </div>
-            <h2 id="auth-meeting-title" class="text-xl font-black mb-2 text-slate-800">載入中...</h2>
-            <p class="text-xs text-slate-400 mb-6">請輸入您的姓名與密碼以填寫時間</p>
-            <div class="space-y-3 text-left">
-                <div>
-                    <label class="text-[10px] font-bold text-slate-400 ml-1 mb-1 block">姓名</label>
-                    <input id="login-name" type="text" placeholder="您的顯示名稱" class="w-full px-5 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-slate-400 ml-1 mb-1 block">密碼 (用於之後修改)</label>
-                    <input id="login-password" type="password" placeholder="個人專屬密碼" class="w-full px-5 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-sm hover:bg-blue-700 shadow-lg mt-2">進入系統</button>
+            <h2 id="auth-meeting-title" class="text-xl font-black mb-2 text-stone-800">載入中...</h2>
+            <p class="text-xs text-stone-400 mb-6">請填寫您的稱呼以開始預約</p>
+            <div class="space-y-4 text-left">
+                <input id="login-name" type="text" placeholder="您的姓名" class="w-full px-5 py-3.5 rounded-xl border border-stone-100 text-sm bg-stone-50 outline-none focus:ring-2 focus:ring-amber-400">
+                <input id="login-password" type="password" placeholder="個人密碼" class="w-full px-5 py-3.5 rounded-xl border border-stone-100 text-sm bg-stone-50 outline-none focus:ring-2 focus:ring-amber-400">
+                <button id="login-btn" onclick="handleLogin()" class="w-full bg-amber-600 text-white py-4 rounded-2xl font-black text-sm hover:bg-amber-700 shadow-lg shadow-amber-100">進入系統</button>
             </div>
         </div>
 
@@ -110,31 +108,32 @@
         <div id="view-survey" class="flex-1 flex flex-col min-h-0 hidden px-6 py-4 gap-4 overflow-hidden">
             <div class="flex justify-between items-end shrink-0">
                 <div>
-                    <h2 id="survey-title" class="text-2xl font-black text-slate-800 leading-tight"></h2>
-                    <p id="survey-desc" class="text-xs text-slate-400 mt-1 truncate max-w-[400px]"></p>
+                    <h2 id="survey-title" class="text-2xl font-black text-stone-800"></h2>
+                    <p id="survey-desc" class="text-xs text-stone-400 mt-1 truncate max-w-[400px]"></p>
                 </div>
-                <div class="flex items-center gap-1 bg-white border border-slate-200 p-1.5 rounded-2xl shadow-sm">
-                    <button onclick="changeWeek(-1)" class="p-2 hover:bg-slate-100 rounded-xl transition-colors"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
-                    <span id="week-display" class="text-xs font-black px-4 min-w-[100px] text-center">本週</span>
-                    <button onclick="changeWeek(1)" class="p-2 hover:bg-slate-100 rounded-xl transition-colors"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                <div class="flex items-center gap-1 bg-white border border-orange-100 p-1 rounded-2xl shadow-sm">
+                    <button onclick="changeWeek(-1)" class="p-2 hover:bg-orange-50 rounded-xl transition-colors"><i data-lucide="chevron-left" class="w-5 h-5 text-amber-600"></i></button>
+                    <span id="week-display" class="text-xs font-black px-4 min-w-[100px] text-center text-stone-600">本週</span>
+                    <button onclick="changeWeek(1)" class="p-2 hover:bg-orange-50 rounded-xl transition-colors"><i data-lucide="chevron-right" class="w-5 h-5 text-amber-600"></i></button>
                 </div>
             </div>
 
-            <!-- 日曆容器 (限制 720x720 以內並置中) -->
-            <div class="flex-1 flex flex-col md:flex-row gap-6 min-h-0 justify-center items-center">
+            <!-- 日曆容器 (500x500 以內) -->
+            <div class="flex-1 flex flex-col md:flex-row gap-8 min-h-0 justify-center items-center">
                 <!-- 個人 -->
-                <div class="calendar-container bg-white rounded-3xl border border-slate-200 shadow-md flex flex-col overflow-hidden">
-                    <div class="px-4 py-2 bg-blue-600 text-white text-[11px] font-black flex items-center gap-2 shrink-0">
-                        <i data-lucide="mouse-pointer-2" class="w-4 h-4"></i> 標記您的空檔時間
+                <div class="calendar-container bg-white rounded-3xl border border-orange-100 shadow-xl flex flex-col overflow-hidden">
+                    <div class="px-4 py-2.5 bg-amber-500 text-white text-[11px] font-black flex items-center justify-between shrink-0">
+                        <div class="flex items-center gap-2"><i data-lucide="edit-3" class="w-4 h-4"></i> 我的空檔</div>
+                        <span class="opacity-80">滑動以標記</span>
                     </div>
                     <div class="flex-1 overflow-auto custom-scroll">
                         <div id="my-calendar" class="calendar-grid no-select" oncontextmenu="return false;"></div>
                     </div>
                 </div>
                 <!-- 團隊 -->
-                <div class="calendar-container bg-white rounded-3xl border border-slate-200 shadow-md flex flex-col overflow-hidden">
-                    <div class="px-4 py-2 bg-slate-800 text-white text-[11px] font-black flex items-center gap-2 shrink-0">
-                        <i data-lucide="users" class="w-4 h-4"></i> 團隊空檔熱點圖
+                <div class="calendar-container bg-white rounded-3xl border border-orange-100 shadow-xl flex flex-col overflow-hidden">
+                    <div class="px-4 py-2.5 bg-stone-800 text-white text-[11px] font-black flex items-center gap-2 shrink-0">
+                        <i data-lucide="users" class="w-4 h-4"></i> 團隊空檔熱點
                     </div>
                     <div class="flex-1 overflow-auto custom-scroll">
                         <div id="team-calendar" class="calendar-grid no-select"></div>
@@ -143,23 +142,23 @@
             </div>
 
             <!-- 底部功能區 (飲食置中) -->
-            <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-lg flex flex-col items-center gap-4 shrink-0 max-w-4xl mx-auto w-full">
-                <div id="meal-survey-section" class="w-full flex flex-col items-center gap-2 hidden">
-                    <span class="text-xs font-black text-slate-400">請選擇您的飲食需求</span>
-                    <div id="diet-container" class="flex gap-4 w-full max-w-xs border-2 border-transparent rounded-2xl p-1">
-                        <button id="btn-meat" onclick="setDiet('葷食')" class="diet-btn flex-1 py-3 rounded-xl border-slate-100 bg-slate-50 text-xs font-black">葷食 (Meat)</button>
-                        <button id="btn-veg" onclick="setDiet('素食')" class="diet-btn flex-1 py-3 rounded-xl border-slate-100 bg-slate-50 text-xs font-black">素食 (Veg)</button>
+            <div class="bg-white border border-orange-100 rounded-[2.5rem] p-6 shadow-xl flex flex-col items-center gap-4 shrink-0 max-w-2xl mx-auto w-full">
+                <div id="meal-survey-section" class="w-full flex flex-col items-center gap-3 hidden">
+                    <span class="text-[11px] font-black text-stone-400 uppercase tracking-widest">用餐調查</span>
+                    <div id="diet-container" class="flex gap-4 w-full max-w-sm rounded-2xl p-1 bg-stone-50 border border-stone-100">
+                        <button id="btn-meat" onclick="setDiet('葷食')" class="diet-btn flex-1 py-3.5 rounded-xl text-xs font-black">葷食 (Meat)</button>
+                        <button id="btn-veg" onclick="setDiet('素食')" class="diet-btn flex-1 py-3.5 rounded-xl text-xs font-black">素食 (Veg)</button>
                     </div>
                 </div>
-                <button onclick="handleFinalSave()" id="save-btn" class="w-full max-w-md bg-blue-600 text-white py-4 rounded-2xl font-black text-base hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg flex items-center justify-center gap-2">
-                    <i data-lucide="check-circle" class="w-5 h-5"></i> 儲存並更新調查
+                <button onclick="handleFinalSave()" id="save-btn" class="w-full max-w-sm bg-stone-800 text-white py-4 rounded-2xl font-black text-base hover:bg-stone-900 active:scale-[0.98] transition-all shadow-lg flex items-center justify-center gap-2">
+                    <i data-lucide="cloud-upload" class="w-5 h-5"></i> 儲存所有更動
                 </button>
             </div>
         </div>
     </main>
 
     <!-- 提示框 -->
-    <div id="tooltip" class="fixed z-[9999] pointer-events-none bg-slate-900 text-white px-3 py-2 rounded-xl text-[11px] shadow-2xl border border-slate-700 hidden">
+    <div id="tooltip" class="fixed z-[9999] pointer-events-none bg-stone-900/90 backdrop-blur text-white px-3 py-2 rounded-xl text-[11px] shadow-2xl hidden">
         <div id="tooltip-names" class="flex flex-wrap gap-1 max-w-[180px]"></div>
     </div>
 
@@ -183,7 +182,7 @@
                 const res = await callAPI({ action: 'getMeetingInfo', meetingId });
                 state.meetingInfo = res;
                 if (!res || res.error) {
-                    document.getElementById('auth-meeting-title').innerText = "找不到會議，請檢查連結是否正確";
+                    document.getElementById('auth-meeting-title').innerText = "找不到會議，請檢查連結";
                     return;
                 }
                 document.getElementById('auth-meeting-title').innerText = res.title;
@@ -197,7 +196,7 @@
                 const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify(data) });
                 return await response.json();
             } catch (e) {
-                showToast("網路連線不穩定");
+                showToast("連線異常");
                 return { error: "error" };
             }
         }
@@ -213,11 +212,11 @@
 
         function setDiet(type) {
             state.diet = type;
-            document.getElementById('diet-container').classList.remove('error-shake', 'border-red-500');
+            document.getElementById('diet-container').classList.remove('error-shake');
             const bMeat = document.getElementById('btn-meat');
             const bVeg = document.getElementById('btn-veg');
-            bMeat.className = 'diet-btn flex-1 py-3 rounded-xl border-slate-100 bg-slate-50 text-xs font-black';
-            bVeg.className = 'diet-btn flex-1 py-3 rounded-xl border-slate-100 bg-slate-50 text-xs font-black';
+            bMeat.className = 'diet-btn flex-1 py-3.5 rounded-xl text-xs font-black bg-white';
+            bVeg.className = 'diet-btn flex-1 py-3.5 rounded-xl text-xs font-black bg-white';
             if (type === '葷食') bMeat.classList.add('active-meat');
             else bVeg.classList.add('active-veg');
         }
@@ -232,7 +231,7 @@
         async function handleLogin() {
             const name = document.getElementById('login-name').value.trim();
             const pass = document.getElementById('login-password').value.trim();
-            if (!name || !pass) return showToast("請完整填寫姓名與密碼");
+            if (!name || !pass) return showToast("姓名與密碼為必填");
             
             const btn = document.getElementById('login-btn');
             btn.disabled = true;
@@ -242,7 +241,7 @@
             if (res?.responses) {
                 const mine = res.responses.find(r => String(r.name).trim() === name);
                 if (mine && mine.password && String(mine.password) !== String(pass)) {
-                    showToast("⚠️ 密碼不正確，請重新輸入");
+                    showToast("密碼錯誤");
                     btn.disabled = false;
                     btn.innerText = "進入系統";
                     return;
@@ -265,10 +264,9 @@
 
         async function handleFinalSave() {
             if (state.meetingInfo?.hasMeal && !state.diet) {
-                showToast("⚠️ 請選擇您的飲食需求");
-                const container = document.getElementById('diet-container');
-                container.classList.add('error-shake', 'border-red-500');
-                setTimeout(() => container.classList.remove('error-shake'), 400);
+                showToast("請選擇飲食需求");
+                document.getElementById('diet-container').classList.add('error-shake');
+                setTimeout(() => document.getElementById('diet-container').classList.remove('error-shake'), 400);
                 return;
             }
 
@@ -283,12 +281,12 @@
             });
 
             if (res.success) {
-                showToast("✅ 調查結果儲存成功！");
+                showToast("儲存成功");
                 const refresh = await callAPI({ action: 'getAllResponses', meetingId });
                 if (refresh.responses) updateGroupVisuals(refresh.responses);
             }
             btn.disabled = false;
-            btn.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i> 儲存並更新調查`;
+            btn.innerHTML = `<i data-lucide="cloud-upload" class="w-5 h-5"></i> 儲存所有更動`;
             lucide.createIcons();
         }
 
@@ -302,22 +300,27 @@
             container.innerHTML = '';
             const dates = getWeekDates();
             
-            container.appendChild(createCell('', 'slot bg-slate-50 border-b border-r'));
+            container.appendChild(createCell('', 'slot bg-stone-50 border-b border-r'));
             dates.forEach((date, i) => {
-                const cell = createCell('', 'slot bg-slate-50 border-b border-r flex flex-col items-center justify-center');
-                cell.innerHTML = `<span class="text-[9px] text-slate-400 font-bold">${daysShort[i]}</span><span class="text-[10px] font-black">${date.split('-')[2]}</span>`;
+                const cell = createCell('', 'slot bg-stone-50 border-b border-r flex flex-col items-center justify-center');
+                cell.innerHTML = `<span class="text-[8px] text-stone-400 font-bold">${daysShort[i]}</span><span class="text-[9px] font-black">${date.split('-')[2]}</span>`;
                 container.appendChild(cell);
             });
 
             hours.forEach(hour => {
-                container.appendChild(createCell(`${hour}:00`, 'slot text-[9px] text-slate-400 font-bold flex items-center justify-center bg-slate-50'));
+                container.appendChild(createCell(`${hour}`, 'slot text-[9px] text-stone-300 font-bold flex items-center justify-center bg-stone-50/50'));
                 dates.forEach(date => {
                     const sid = `${date}_${hour}`;
                     const cell = createCell('', `slot ${isInteractive ? 'slot-hover cursor-pointer' : ''}`);
                     cell.id = `${containerId}-${sid}`;
                     if (isInteractive) {
                         if (state.mySlots[sid]) cell.classList.add('slot-active');
-                        cell.onmousedown = () => { state.isDragging = true; state.dragMode = !cell.classList.contains('slot-active'); toggleSlot(sid, cell); };
+                        cell.onmousedown = (e) => { 
+                            if (e.button !== 0) return;
+                            state.isDragging = true; 
+                            state.dragMode = !cell.classList.contains('slot-active'); 
+                            toggleSlot(sid, cell); 
+                        };
                         cell.onmouseenter = () => { if (state.isDragging) toggleSlot(sid, cell); };
                     } else {
                         cell.onmouseenter = (e) => showTooltip(e, sid);
@@ -358,8 +361,9 @@
                     if (!cell) return;
                     const count = state.groupData[sid]?.length || 0;
                     const ratio = state.totalParticipants > 0 ? count / state.totalParticipants : 0;
-                    cell.style.backgroundColor = count > 0 ? `rgba(59, 130, 246, ${0.15 + ratio * 0.85})` : '';
-                    cell.innerHTML = count > 0 ? `<span class="absolute inset-0 flex items-center justify-center text-[10px] font-black ${ratio > 0.5 ? 'text-white' : 'text-blue-600'}">${count}</span>` : '';
+                    // 暖色調熱點漸層 (琥珀色)
+                    cell.style.backgroundColor = count > 0 ? `rgba(245, 158, 11, ${0.1 + ratio * 0.9})` : '';
+                    cell.innerHTML = count > 0 ? `<span class="absolute inset-0 flex items-center justify-center text-[9px] font-black ${ratio > 0.5 ? 'text-white' : 'text-amber-700'}">${count}</span>` : '';
                 });
             });
         }
@@ -390,16 +394,15 @@
             if (!users) return;
             const tt = document.getElementById('tooltip');
             const list = document.getElementById('tooltip-names');
-            list.innerHTML = `<div class="w-full font-black border-b border-slate-700 mb-1 pb-1 flex justify-between"><span>${users.length} 人有空</span> <i data-lucide="check" class="w-3 h-3"></i></div>`;
+            list.innerHTML = `<div class="w-full font-black border-b border-stone-700 mb-1 pb-1 flex justify-between"><span>${users.length} 人有空</span></div>`;
             users.forEach(u => {
                 const s = document.createElement('span');
-                s.className = `px-2 py-0.5 rounded-lg text-[9px] ${u.diet === '素食' ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-100'}`;
-                s.innerText = u.name + (u.diet === '素食' ? ' (素)' : '');
+                s.className = `px-2 py-0.5 rounded-lg text-[9px] ${u.diet === '素食' ? 'bg-green-700 text-white' : 'bg-stone-700 text-stone-100'}`;
+                s.innerText = u.name;
                 list.appendChild(s);
             });
             tt.classList.remove('hidden');
-            tt.style.left = (e.pageX + 15) + 'px'; tt.style.top = (e.pageY + 15) + 'px';
-            lucide.createIcons();
+            tt.style.left = (e.pageX + 10) + 'px'; tt.style.top = (e.pageY + 10) + 'px';
         }
 
         function hideTooltip() { document.getElementById('tooltip').classList.add('hidden'); }
@@ -408,18 +411,14 @@
             const title = document.getElementById('new-title').value.trim();
             const desc = document.getElementById('new-desc').value.trim();
             const hasMeal = document.getElementById('new-meal-toggle').checked;
-            if (!title) return showToast("請至少輸入會議標題");
+            if (!title) return showToast("標題必填");
             
             const res = await callAPI({ action: 'createMeeting', title, description: desc, hasMeal });
             if (res?.meetingId) {
                 const url = window.location.origin + window.location.pathname + '?id=' + res.meetingId;
                 document.getElementById('generated-url').innerText = url;
                 document.getElementById('link-result').classList.remove('hidden');
-                
-                // 設定直接前往按鈕
-                const goBtn = document.getElementById('go-to-link');
-                goBtn.onclick = () => window.location.href = url;
-                
+                document.getElementById('go-to-link').onclick = () => window.location.href = url;
                 lucide.createIcons();
             }
         }
@@ -430,7 +429,7 @@
             el.value = url; document.body.appendChild(el);
             el.select(); document.execCommand('copy');
             document.body.removeChild(el);
-            showToast("連結已複製到剪貼簿");
+            showToast("連結已複製");
         }
 
         window.onmouseup = () => state.isDragging = false;
