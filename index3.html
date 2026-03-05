@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MeetingSync V9 - Robust Sync</title>
+    <title>MeetingSync V7 - Stable Sync</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -16,122 +16,132 @@
         } 
         
         .calendar-grid { display: grid; grid-template-columns: 45px repeat(7, 1fr); }
-        .slot { height: 28px; border-bottom: 1px solid #edf2f7; border-right: 1px solid #edf2f7; position: relative; transition: background-color 0.2s; }
+        .slot { height: 32px; border-bottom: 1px solid #edf2f7; border-right: 1px solid #edf2f7; position: relative; transition: background-color 0.1s; }
         .slot-active { background-color: #2563eb !important; }
         .slot-hover:hover { background-color: #f1f5f9; }
         
-        .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         
         .calendar-container {
-            max-width: 480px;
-            max-height: 500px;
+            max-width: 500px;
             width: 100%;
             height: 100%;
             background: white;
-            border-radius: 12px;
+            border-radius: 16px;
             border: 1px solid #e2e8f0;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.05);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
         }
 
-        .diet-btn { transition: all 0.2s ease; border: 1px solid #e2e8f0; }
-        .diet-btn.active-meat { background-color: #1e293b; color: white; border-color: #1e293b; }
-        .diet-btn.active-veg { background-color: #059669; color: white; border-color: #059669; }
+        .diet-btn { transition: all 0.2s; border: 2px solid transparent; }
+        .diet-btn.active { border-color: #2563eb; background-color: #eff6ff; color: #1e40af; }
         
         .no-select { user-select: none; }
-        
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-view { animation: fadeIn 0.4s ease-out forwards; }
     </style>
 </head>
 <body class="text-slate-800 h-screen flex flex-col">
 
-    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-lg bg-slate-900 text-white text-sm font-medium shadow-2xl opacity-0 pointer-events-none transition-all duration-300 transform scale-90">
+    <!-- Toast 通知系統 -->
+    <div id="toast" class="fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl bg-slate-900 text-white text-sm font-bold shadow-2xl opacity-0 pointer-events-none transition-all duration-300 transform scale-90">
         <span id="toast-msg"></span>
     </div>
 
-    <nav class="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shrink-0 shadow-sm z-10">
-        <div class="flex items-center gap-2 cursor-pointer" onclick="window.location.reload()">
-            <div class="bg-blue-600 p-1.5 rounded-lg shadow-md">
-                <i data-lucide="calendar-check-2" class="w-5 h-5 text-white"></i>
+    <!-- 導航列 -->
+    <nav class="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-2">
+            <div class="bg-blue-600 p-1.5 rounded-lg shadow-lg shadow-blue-200">
+                <i data-lucide="calendar-range" class="w-5 h-5 text-white"></i>
             </div>
-            <h1 class="text-lg font-extrabold text-slate-900">MeetingSync <span class="text-blue-600">V9</span></h1>
+            <h1 class="text-xl font-black text-slate-900 tracking-tight">MeetingSync <span class="text-blue-600">V7</span></h1>
         </div>
-        <div id="nav-user-info" class="hidden flex items-center gap-4">
+        <div id="nav-user-info" class="hidden flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+                <i data-lucide="user" class="w-4 h-4 text-slate-500"></i>
+            </div>
             <span id="display-user-name" class="text-sm font-bold text-slate-700"></span>
         </div>
     </nav>
 
-    <main class="flex-1 flex flex-col min-h-0 overflow-hidden bg-slate-50">
+    <main class="flex-1 flex flex-col min-h-0 overflow-hidden">
         
         <!-- 管理端：建立會議 -->
-        <div id="view-admin" class="m-auto max-w-lg w-full bg-white rounded-2xl shadow-xl border p-10 hidden animate-view">
-            <h2 class="text-2xl font-black mb-6 text-slate-900">建立會議調查</h2>
-            <div class="space-y-6">
-                <input id="new-title" type="text" placeholder="會議標題" class="w-full px-4 py-3 rounded-xl border outline-none focus:ring-2 focus:ring-blue-500">
-                <textarea id="new-desc" placeholder="說明文字" class="w-full px-4 py-3 rounded-xl border h-24 outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+        <div id="view-admin" class="m-auto max-w-md w-full bg-white rounded-3xl shadow-2xl border p-10 hidden">
+            <h2 class="text-2xl font-black mb-8 text-slate-900">發起新會議</h2>
+            <div class="space-y-5">
+                <div class="space-y-1">
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1">會議主題</label>
+                    <input id="new-title" type="text" placeholder="例如：專題進度討論" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-500 transition-all outline-none">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1">補充說明</label>
+                    <textarea id="new-desc" placeholder="請大家標記可以出席的時間..." class="w-full px-4 py-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 h-24 focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+                </div>
                 <div class="flex items-center justify-between p-4 bg-blue-50 rounded-xl">
-                    <span class="text-sm font-bold">統計飲食需求</span>
-                    <input type="checkbox" id="new-meal-toggle" class="w-5 h-5" checked>
-                </div>
-                <button onclick="handleCreateMeeting()" id="create-btn" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-all">生成邀請連結</button>
-                
-                <div id="link-result" class="hidden space-y-3 mt-8 p-5 bg-emerald-50 rounded-xl border border-emerald-100 animate-view">
-                    <div class="flex items-center gap-2 bg-white p-2.5 rounded-lg border">
-                        <code id="generated-url" class="text-[11px] truncate flex-1 text-emerald-700 font-mono"></code>
-                        <button onclick="copyLink()" class="p-2 hover:bg-emerald-50 rounded-md text-emerald-600"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="utensils" class="w-4 h-4 text-blue-600"></i>
+                        <span class="text-sm font-bold text-blue-900">統計飲食需求</span>
                     </div>
-                    <button id="go-to-link" class="w-full bg-slate-900 text-white py-3 rounded-lg font-bold text-xs flex items-center justify-center gap-2">
-                        進入調查頁 <i data-lucide="external-link" class="w-4 h-4"></i>
-                    </button>
+                    <input type="checkbox" id="new-meal-toggle" class="w-5 h-5 accent-blue-600" checked>
+                </div>
+                <button onclick="handleCreateMeeting()" id="create-btn" class="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-lg hover:bg-blue-700 active:scale-[0.98] transition-all">生成邀請連結</button>
+                
+                <div id="link-result" class="hidden space-y-3 mt-8 p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
+                    <p class="text-[10px] font-black text-emerald-600 uppercase">邀請連結已就緒</p>
+                    <div class="flex items-center gap-2 bg-white p-3 rounded-xl border border-emerald-200">
+                        <code id="generated-url" class="text-xs truncate flex-1 text-slate-600 font-mono"></code>
+                        <button onclick="copyLink()" class="p-2 hover:bg-emerald-50 rounded-lg text-emerald-600 transition-colors"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- 登入端：身份驗證 -->
-        <div id="view-auth" class="m-auto max-w-sm w-full bg-white rounded-2xl shadow-xl border p-10 hidden text-center animate-view">
-            <h2 id="auth-meeting-title" class="text-xl font-black text-slate-900 mb-6">載入中...</h2>
+        <!-- 驗證端：進入會議 -->
+        <div id="view-auth" class="m-auto max-w-sm w-full bg-white rounded-3xl shadow-2xl border p-10 hidden text-center">
+            <h2 id="auth-meeting-title" class="text-2xl font-black text-slate-900 mb-2">載入中...</h2>
+            <p class="text-sm text-slate-400 mb-8">請輸入您的基本資料以進入調查</p>
             <div class="space-y-4 text-left">
-                <input id="login-name" type="text" placeholder="您的姓名" class="w-full px-4 py-3 rounded-xl border outline-none focus:ring-2 focus:ring-blue-500">
-                <input id="login-password" type="password" placeholder="個人識別密碼" class="w-full px-4 py-3 rounded-xl border outline-none focus:ring-2 focus:ring-blue-500">
-                <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-all">進入調查</button>
+                <input id="login-name" type="text" placeholder="您的姓名" class="w-full px-5 py-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
+                <input id="login-password" type="password" placeholder="個人識別密碼 (供日後修改)" class="w-full px-5 py-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
+                <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-lg hover:bg-blue-700 transition-all">進入調查系統</button>
             </div>
         </div>
 
-        <!-- 主界面：調查與團隊日曆 -->
-        <div id="view-survey" class="flex-1 flex flex-col min-h-0 hidden px-10 py-6 gap-6 overflow-hidden">
-            <div class="flex justify-between items-end shrink-0">
+        <!-- 主界面：填寫與結果 -->
+        <div id="view-survey" class="flex-1 flex flex-col min-h-0 hidden p-6 gap-6">
+            <!-- 標題資訊 -->
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 px-4">
                 <div>
-                    <h2 id="survey-title" class="text-2xl font-black text-slate-900"></h2>
-                    <p id="survey-desc" class="text-xs text-slate-500 mt-1"></p>
+                    <h2 id="survey-title" class="text-3xl font-black text-slate-900 leading-tight"></h2>
+                    <p id="survey-desc" class="text-sm text-slate-500 mt-1 max-w-lg"></p>
                 </div>
-                <div class="flex items-center gap-2 bg-white border p-1 rounded-xl shadow-sm">
-                    <button onclick="changeWeek(-1)" class="p-2 hover:bg-slate-50 rounded-lg"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-                    <span id="week-display" class="text-xs font-black px-4 min-w-[110px] text-center">本週</span>
-                    <button onclick="changeWeek(1)" class="p-2 hover:bg-slate-50 rounded-lg"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                <div class="flex items-center gap-2 bg-white border border-slate-200 p-1 rounded-2xl shadow-sm">
+                    <button onclick="changeWeek(-1)" class="p-2.5 hover:bg-slate-50 rounded-xl transition-colors"><i data-lucide="chevron-left" class="w-5 h-5 text-slate-600"></i></button>
+                    <span id="week-display" class="text-sm font-black px-6 min-w-[120px] text-center text-slate-700">本週</span>
+                    <button onclick="changeWeek(1)" class="p-2.5 hover:bg-slate-50 rounded-xl transition-colors"><i data-lucide="chevron-right" class="w-5 h-5 text-slate-600"></i></button>
                 </div>
             </div>
 
-            <div class="flex-1 flex flex-col md:flex-row gap-8 min-h-0 items-center justify-center overflow-hidden">
-                <!-- 個人填寫 -->
+            <!-- 日曆區域 -->
+            <div class="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 items-center justify-center overflow-hidden">
+                <!-- 個人填寫區 -->
                 <div class="calendar-container">
-                    <div class="px-4 py-3 bg-blue-600 text-white text-[10px] font-black flex items-center justify-between shrink-0 uppercase tracking-widest">
-                        <div class="flex items-center gap-2"><i data-lucide="mouse-pointer-2" class="w-3.5 h-3.5"></i> 個人標記</div>
-                        <div id="save-status" class="hidden flex items-center gap-1.5"><div class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>同步中</div>
+                    <div class="px-5 py-4 bg-slate-900 text-white text-[11px] font-black flex items-center justify-between shrink-0 tracking-widest uppercase">
+                        <div class="flex items-center gap-2"><i data-lucide="mouse-pointer-click" class="w-4 h-4 text-blue-400"></i> 個人標記時間</div>
+                        <div id="save-status" class="hidden flex items-center gap-2"><span class="w-2 h-2 bg-blue-400 rounded-full animate-ping"></span> 同步中</div>
                     </div>
                     <div class="flex-1 overflow-auto custom-scroll">
                         <div id="my-calendar" class="calendar-grid no-select" oncontextmenu="return false;"></div>
                     </div>
                 </div>
 
-                <!-- 團隊空檔 -->
+                <!-- 團隊空檔區 -->
                 <div class="calendar-container">
-                    <div class="px-4 py-3 bg-emerald-700 text-white text-[10px] font-black flex items-center justify-between shrink-0 uppercase tracking-widest">
-                        <div class="flex items-center gap-2"><i data-lucide="users-2" class="w-3.5 h-3.5"></i> 團隊空檔</div>
-                        <span id="total-count-badge" class="bg-emerald-800 px-2 py-0.5 rounded">0 人參與</span>
+                    <div class="px-5 py-4 bg-blue-700 text-white text-[11px] font-black flex items-center justify-between shrink-0 tracking-widest uppercase">
+                        <div class="flex items-center gap-2"><i data-lucide="users" class="w-4 h-4 text-blue-200"></i> 團隊空檔熱圖</div>
+                        <span id="total-count-badge" class="bg-blue-800/50 px-3 py-1 rounded-full text-[10px]">0 人參與</span>
                     </div>
                     <div class="flex-1 overflow-auto custom-scroll">
                         <div id="team-calendar" class="calendar-grid no-select"></div>
@@ -139,27 +149,33 @@
                 </div>
             </div>
 
-            <div class="bg-white border rounded-2xl p-6 shadow-xl flex flex-col items-center gap-4 shrink-0 max-w-4xl mx-auto w-full mb-2">
-                <div id="meal-survey-section" class="w-full flex flex-col items-center gap-2 hidden">
-                    <span class="text-[10px] font-black text-slate-400 uppercase">飲食確認</span>
-                    <div class="flex gap-4 w-full max-w-sm p-1.5 bg-slate-100 rounded-xl">
-                        <button id="btn-meat" onclick="setDiet('葷食')" class="diet-btn flex-1 py-3 rounded-lg text-xs font-black bg-white">葷食</button>
-                        <button id="btn-veg" onclick="setDiet('素食')" class="diet-btn flex-1 py-3 rounded-lg text-xs font-black bg-white">素食</button>
+            <!-- 下方控制區 -->
+            <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-center gap-6 shrink-0 max-w-5xl mx-auto w-full mb-4">
+                <div id="meal-survey-section" class="flex-1 flex items-center gap-6 hidden">
+                    <span class="text-xs font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">飲食確認</span>
+                    <div class="flex gap-2 w-full">
+                        <button id="btn-meat" onclick="setDiet('葷食')" class="diet-btn flex-1 py-4 rounded-xl text-sm font-bold bg-slate-50 text-slate-600 flex items-center justify-center gap-2">
+                            <i data-lucide="beef" class="w-4 h-4"></i> 葷食
+                        </button>
+                        <button id="btn-veg" onclick="setDiet('素食')" class="diet-btn flex-1 py-4 rounded-xl text-sm font-bold bg-slate-50 text-slate-600 flex items-center justify-center gap-2">
+                            <i data-lucide="leaf" class="w-4 h-4"></i> 素食
+                        </button>
                     </div>
                 </div>
-                <button onclick="handleFinalSave()" id="save-btn" class="w-full max-w-lg bg-blue-600 text-white py-4 rounded-xl font-black text-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-3">
-                    <i data-lucide="save" class="w-5 h-5"></i> 儲存並更新回覆
+                <button onclick="handleFinalSave()" id="save-btn" class="w-full md:w-80 bg-blue-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-lg shadow-blue-200">
+                    <i data-lucide="cloud-upload" class="w-6 h-6"></i> 儲存我的空檔
                 </button>
             </div>
         </div>
     </main>
 
-    <div id="tooltip" class="fixed z-[9999] pointer-events-none bg-slate-900/95 backdrop-blur-sm text-white px-4 py-3 rounded-xl shadow-2xl text-[10px] hidden border border-slate-700 transform -translate-x-1/2 -translate-y-full mb-4">
-        <div id="tooltip-names" class="flex flex-col gap-1.5"></div>
+    <!-- 工具提示 (熱圖資訊) -->
+    <div id="tooltip" class="fixed z-[9999] pointer-events-none bg-slate-900/95 backdrop-blur-md text-white px-5 py-4 rounded-2xl shadow-2xl text-[11px] hidden border border-slate-700 transform -translate-x-1/2 -translate-y-full mb-4 min-w-[140px]">
+        <div id="tooltip-names" class="flex flex-col gap-2"></div>
     </div>
 
     <script>
-        // 確保這段 URL 是正確的 Google Apps Script 佈署連結
+        // 核心配置：請務必將此網址替換為您的 Google Apps Script 佈署連結
         const API_URL = 'https://script.google.com/macros/s/AKfycbxogvFVUYKbBaHqzXWFO714dhcEmjgt1r9IkwUeNtUxwYlW4eYs0IrQEVdLp7zBb_yn/exec';
         const meetingId = new URLSearchParams(window.location.search).get('id');
         
@@ -178,12 +194,12 @@
             if (meetingId) {
                 showView('view-auth');
                 const res = await callAPI({ action: 'getMeetingInfo', meetingId });
-                if (!res || res.error) {
-                    document.getElementById('auth-meeting-title').innerText = "連結無效或網路錯誤";
-                    return;
+                if (res && !res.error) {
+                    state.meetingInfo = res;
+                    document.getElementById('auth-meeting-title').innerText = res.title;
+                } else {
+                    document.getElementById('auth-meeting-title').innerText = "找不到會議";
                 }
-                state.meetingInfo = res;
-                document.getElementById('auth-meeting-title').innerText = res.title;
             } else {
                 showView('view-admin');
             }
@@ -191,23 +207,14 @@
 
         async function callAPI(data) {
             try {
-                // 增加 timeout 或更穩定的 fetch 處理
                 const response = await fetch(API_URL, { 
                     method: 'POST', 
-                    mode: 'no-cors', // 某些 GAS 環境可能需要
                     body: JSON.stringify(data) 
                 });
-                
-                // 注意：如果使用 no-cors，無法獲取 JSON 內容
-                // 這邊改回標準 mode，但加入 try-catch
-                const res = await fetch(API_URL, { 
-                    method: 'POST', 
-                    body: JSON.stringify(data) 
-                });
-                return await res.json();
+                return await response.json();
             } catch (e) {
                 console.error("API Error:", e);
-                return { error: true, message: e.message };
+                return { error: true };
             }
         }
 
@@ -233,7 +240,7 @@
         async function handleLogin() {
             const name = document.getElementById('login-name').value.trim();
             const pass = document.getElementById('login-password').value.trim();
-            if (!name || !pass) return showToast("請輸入姓名與密碼");
+            if (!name || !pass) return showToast("姓名與密碼為必填");
             
             const btn = document.getElementById('login-btn');
             btn.innerText = "驗證中...";
@@ -241,17 +248,17 @@
 
             const res = await callAPI({ action: 'getAllResponses', meetingId });
             if (res.error) {
-                showToast("連線失敗，請檢查網路");
+                showToast("同步失敗，請檢查網路連結");
                 btn.disabled = false;
-                btn.innerText = "進入調查";
+                btn.innerText = "進入調查系統";
                 return;
             }
 
             const mine = res.responses?.find(r => r.name === name);
             if (mine && mine.password && String(mine.password) !== String(pass)) {
-                showToast("識別密碼不正確");
+                showToast("密碼錯誤！請輸入您當初設定的密碼");
                 btn.disabled = false;
-                btn.innerText = "進入調查";
+                btn.innerText = "進入調查系統";
                 return;
             }
 
@@ -259,6 +266,7 @@
             state.password = pass;
             state.allResponses = res.responses || [];
             document.getElementById('display-user-name').innerText = name;
+            document.getElementById('nav-user-info').classList.remove('hidden');
             
             if (mine) {
                 if (mine.diet) setDiet(mine.diet);
@@ -270,53 +278,49 @@
             showView('view-survey');
             document.getElementById('survey-title').innerText = state.meetingInfo.title;
             document.getElementById('survey-desc').innerText = state.meetingInfo.description;
+            lucide.createIcons();
         }
 
         async function handleFinalSave() {
-            if (state.meetingInfo.hasMeal && !state.diet) return showToast("請選擇飲食習慣");
+            if (state.meetingInfo.hasMeal && !state.diet) return showToast("請選擇您的飲食需求");
             
             const btn = document.getElementById('save-btn');
             const status = document.getElementById('save-status');
             
             btn.disabled = true;
-            btn.innerText = "同步中...";
+            btn.innerText = "正在儲存...";
             status.classList.remove('hidden');
 
-            try {
-                const res = await callAPI({
-                    action: 'saveResponse', 
-                    meetingId, 
-                    name: state.userName, 
-                    password: state.password,
-                    diet: state.diet || '未調查', 
-                    slots: JSON.stringify(state.mySlots)
-                });
+            const res = await callAPI({
+                action: 'saveResponse', 
+                meetingId, 
+                name: state.userName, 
+                password: state.password,
+                diet: state.diet || '不需要', 
+                slots: JSON.stringify(state.mySlots)
+            });
 
-                if (res.success) {
-                    showToast("同步成功");
-                    // 強制重整團隊資料
-                    const refresh = await callAPI({ action: 'getAllResponses', meetingId });
-                    if (refresh.responses) {
-                        state.allResponses = refresh.responses;
-                        updateGroupVisuals(state.allResponses);
-                    }
-                } else {
-                    throw new Error("Server rejected");
+            if (res.success) {
+                showToast("資料已成功同步到雲端");
+                const refresh = await callAPI({ action: 'getAllResponses', meetingId });
+                if (refresh.responses) {
+                    state.allResponses = refresh.responses;
+                    updateGroupVisuals(state.allResponses);
                 }
-            } catch (e) {
-                showToast("同步失敗，請再試一次");
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = `<i data-lucide="save" class="w-5 h-5"></i> 儲存並更新回覆`;
-                status.classList.add('hidden');
-                lucide.createIcons();
+            } else {
+                showToast("同步出錯，請再試一次");
             }
+            
+            btn.disabled = false;
+            btn.innerHTML = `<i data-lucide="cloud-upload" class="w-6 h-6"></i> 儲存我的空檔`;
+            status.classList.add('hidden');
+            lucide.createIcons();
         }
 
         function updateGroupVisuals(responses) {
             state.groupData = {};
             state.totalParticipants = responses.length;
-            document.getElementById('total-count-badge').innerText = `${state.totalParticipants} 人參與`;
+            document.getElementById('total-count-badge').innerText = `${state.totalParticipants} 人參與回覆`;
             
             responses.forEach(r => {
                 let s = {};
@@ -338,8 +342,8 @@
                     const ratio = state.totalParticipants > 0 ? list.length / state.totalParticipants : 0;
                     
                     if (list.length > 0) {
-                        cell.style.backgroundColor = `rgba(16, 185, 129, ${0.1 + (ratio * 0.9)})`;
-                        cell.innerHTML = `<span class="absolute inset-0 flex items-center justify-center text-[10px] font-black ${ratio > 0.6 ? 'text-white' : 'text-emerald-900'}">${list.length}</span>`;
+                        cell.style.backgroundColor = `rgba(37, 99, 235, ${0.05 + (ratio * 0.9)})`;
+                        cell.innerHTML = `<span class="absolute inset-0 flex items-center justify-center text-[10px] font-black ${ratio > 0.5 ? 'text-white' : 'text-blue-600'}">${list.length}</span>`;
                     } else {
                         cell.style.backgroundColor = '';
                         cell.innerHTML = '';
@@ -358,15 +362,17 @@
             container.innerHTML = '';
             const dates = getWeekDates();
             
-            container.appendChild(createCell('', 'slot bg-slate-50 sticky top-0 z-10'));
+            // Header
+            container.appendChild(createCell('', 'slot bg-slate-50 sticky top-0 z-10 border-b-2 border-slate-200'));
             dates.forEach((date, i) => {
-                const cell = createCell('', 'slot bg-slate-50 flex flex-col items-center justify-center sticky top-0 z-10');
-                cell.innerHTML = `<span class="text-[7px] text-slate-400 font-black">${daysShort[i]}</span><span class="text-[11px] font-black">${date.split('-')[2]}</span>`;
+                const cell = createCell('', 'slot bg-slate-50 flex flex-col items-center justify-center sticky top-0 z-10 border-b-2 border-slate-200');
+                cell.innerHTML = `<span class="text-[8px] text-slate-400 font-black">${daysShort[i]}</span><span class="text-xs font-black text-slate-700">${date.split('-')[2]}</span>`;
                 container.appendChild(cell);
             });
 
+            // Rows
             hours.forEach(hour => {
-                container.appendChild(createCell(`${hour}:00`, 'slot text-[9px] text-slate-400 font-bold flex items-center justify-center bg-slate-50'));
+                container.appendChild(createCell(`${hour}:00`, 'slot text-[10px] text-slate-400 font-bold flex items-center justify-center bg-slate-50 border-r-2 border-slate-200'));
                 dates.forEach(date => {
                     const sid = `${date}_${hour}`;
                     const cell = createCell('', `slot ${isInteractive ? 'slot-hover cursor-pointer' : ''}`);
@@ -403,10 +409,8 @@
 
         function setDiet(type) {
             state.diet = type;
-            document.getElementById('btn-meat').className = 'diet-btn flex-1 py-3 rounded-lg text-xs font-black bg-white';
-            document.getElementById('btn-veg').className = 'diet-btn flex-1 py-3 rounded-lg text-xs font-black bg-white';
-            if (type === '葷食') document.getElementById('btn-meat').classList.add('active-meat');
-            else document.getElementById('btn-veg').classList.add('active-veg');
+            document.getElementById('btn-meat').classList.toggle('active', type === '葷食');
+            document.getElementById('btn-veg').classList.toggle('active', type === '素食');
         }
 
         function getWeekDates() {
@@ -434,15 +438,15 @@
             if (!users) return;
             const tt = document.getElementById('tooltip');
             const list = document.getElementById('tooltip-names');
-            list.innerHTML = `<div class="font-black border-b border-slate-700 mb-2 pb-1 text-emerald-400">可出席 (${users.length})</div>`;
+            list.innerHTML = `<div class="font-black border-b border-slate-700 mb-2 pb-1 text-blue-400 uppercase tracking-widest text-[9px]">可出席名單 (${users.length})</div>`;
             users.forEach(u => {
                 const s = document.createElement('div');
-                s.className = "flex justify-between gap-4";
-                s.innerHTML = `<span>${u.name}</span><span class="opacity-40 text-[8px]">${u.diet}</span>`;
+                s.className = "flex justify-between items-center gap-4";
+                s.innerHTML = `<span class="font-bold">${u.name}</span><span class="opacity-50 text-[9px]">${u.diet}</span>`;
                 list.appendChild(s);
             });
             tt.classList.remove('hidden');
-            tt.style.left = e.pageX + 'px'; tt.style.top = e.pageY + 'px';
+            tt.style.left = e.pageX + 'px'; tt.style.top = (e.pageY - 10) + 'px';
         }
 
         function hideTooltip() { document.getElementById('tooltip').classList.add('hidden'); }
@@ -450,24 +454,34 @@
         async function handleCreateMeeting() {
             const title = document.getElementById('new-title').value.trim();
             const desc = document.getElementById('new-desc').value.trim();
-            if (!title) return showToast("標題不能為空");
+            if (!title) return showToast("會議標題為必填內容");
             
             const btn = document.getElementById('create-btn');
-            btn.innerText = "生成中...";
-            const res = await callAPI({ action: 'createMeeting', title, description: desc, hasMeal: document.getElementById('new-meal-toggle').checked });
+            btn.innerText = "正在建立連結...";
+            btn.disabled = true;
+
+            const res = await callAPI({ 
+                action: 'createMeeting', 
+                title, 
+                description: desc, 
+                hasMeal: document.getElementById('new-meal-toggle').checked 
+            });
             
             if (res.meetingId) {
                 const url = window.location.origin + window.location.pathname + '?id=' + res.meetingId;
                 document.getElementById('generated-url').innerText = url;
                 document.getElementById('link-result').classList.remove('hidden');
-                document.getElementById('go-to-link').onclick = () => window.location.href = url;
+                showToast("會議已建立成功！");
+            } else {
+                showToast("建立失敗，請稍後再試");
             }
             btn.innerText = "生成邀請連結";
+            btn.disabled = false;
         }
 
         function copyLink() {
             const url = document.getElementById('generated-url').innerText;
-            navigator.clipboard.writeText(url).then(() => showToast("已複製連結"));
+            navigator.clipboard.writeText(url).then(() => showToast("連結已複製到剪貼簿"));
         }
 
         window.onmouseup = () => state.isDragging = false;
