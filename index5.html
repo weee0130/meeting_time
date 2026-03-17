@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeetingSync V2 - 雙週會議調查</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .no-select { user-select: none; }
+        /* 修改為 14 欄位 */
+        .calendar-grid { display: grid; grid-template-columns: 50px repeat(14, 1fr); min-width: 1200px; }
+        .slot-active { background-color: #3b82f6 !important; }
+        .slot-hover:hover { background-color: #eff6ff; }
+        .slot-past { 
+            background-color: #f1f5f9 !important; 
+            cursor: not-allowed !important;
+            opacity: 0.6;
+        }
+        .custom-scroll::-webkit-scrollbar { height: 8px; width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen pb-10">
+
+    <div id="tooltip" class="fixed z-[9999] pointer-events-none bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-2xl border border-slate-700 hidden">
+        <p class="font-bold border-b border-slate-700 pb-1 mb-1.5 flex items-center gap-1.5 text-green-400">
+            <i data-lucide="users" class="w-3 h-3"></i> 有空的人：
+        </p>
+        <div id="tooltip-names" class="flex flex-wrap gap-1 max-w-[180px]"></div>
+    </div>
+
+    <nav class="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-4 py-2">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <h1 class="text-lg font-black text-blue-600 flex items-center gap-2 cursor-pointer" onclick="window.location.reload()">
+                <i data-lucide="calendar" class="w-5 h-5"></i> MeetingSync
+            </h1>
+            <div id="nav-user-info" class="hidden flex items-center gap-3">
+                <div class="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
+                    <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                    <span id="display-user-name" class="text-xs font-bold text-slate-700"></span>
+                </div>
+                <button onclick="handleSave()" id="save-btn" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm transition-all">
+                    儲存修改
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-[1600px] mx-auto px-4 mt-6">
+        <!-- 視圖：建立會議 -->
+        <div id="view-admin" class="max-w-md mx-auto bg-white rounded-3xl shadow-xl p-8 border border-slate-200 hidden">
+            <div class="mb-6 text-center">
+                <div class="bg-blue-50 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 text-blue-600">
+                    <i data-lucide="plus-circle" class="w-6 h-6"></i>
+                </div>
+                <h2 class="text-xl font-black">發起新會議 (雙週版)</h2>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 ml-1">會議主題</label>
+                    <input id="new-title" type="text" placeholder="例如：雙週進度追蹤" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 ml-1">會議說明 (選填)</label>
+                    <textarea id="new-desc" placeholder="請在此輸入會議背景或議程..." class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm h-24 resize-none"></textarea>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="utensils" class="w-4 h-4 text-slate-400"></i>
+                        <span class="text-sm font-bold text-slate-600">是否提供餐點</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="new-meal-toggle" class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+                <button onclick="handleCreateMeeting()" class="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold hover:bg-slate-800 transition-all text-sm">
+                    生成調查連結
+                </button>
+                <div id="link-result" class="mt-6 p-4 bg-green-50 rounded-xl border border-green-100 hidden">
+                    <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-green-200 mb-3">
+                        <code id="generated-url" class="flex-1 text-[10px] truncate text-slate-600"></code>
+                        <button onclick="copyLink()" class="p-2 text-green-600 hover:bg-green-50 rounded-md">
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <button id="open-link-btn" class="w-full bg-green-600 text-white py-2.5 rounded-lg font-bold hover:bg-green-700 transition-all text-xs flex items-center justify-center gap-2">
+                        <i data-lucide="external-link" class="w-4 h-4"></i> 前往會議頁面
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 視圖：身分登入 -->
+        <div id="view-auth" class="max-w-sm mx-auto bg-white rounded-3xl shadow-xl p-8 border border-slate-200 hidden">
+            <div class="text-center mb-6">
+                <h2 id="auth-meeting-title" class="text-xl font-black italic">載入中...</h2>
+                <p id="auth-meeting-desc" class="text-slate-400 text-xs mt-2 px-4"></p>
+            </div>
+            <div class="space-y-4">
+                <input id="login-name" type="text" placeholder="您的姓名" class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm">
+                <input id="login-password" type="password" placeholder="簡易密碼 (修改資料用)" class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm">
+                
+                <div id="meal-selection-area" class="hidden p-4 bg-orange-50 rounded-xl border border-orange-100">
+                    <p class="text-[11px] font-bold text-orange-600 mb-2 flex items-center gap-1">
+                        <i data-lucide="info" class="w-3 h-3"></i> 本會議提供餐點，請選擇：
+                    </p>
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                            <input type="radio" name="diet" value="葷食" checked class="accent-orange-600"> 葷食
+                        </label>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                            <input type="radio" name="diet" value="素食" class="accent-orange-600"> 素食
+                        </label>
+                    </div>
+                </div>
+
+                <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition-all text-sm">
+                    進入系統
+                </button>
+            </div>
+        </div>
+
+        <!-- 視圖：調查主介面 -->
+        <div id="view-survey" class="space-y-6 hidden">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h2 id="survey-title" class="text-2xl font-black uppercase">會議主題</h2>
+                        <p id="survey-desc" class="text-slate-500 text-sm mt-1 max-w-2xl"></p>
+                    </div>
+                    <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl shrink-0">
+                        <button onclick="changeWeek(-2)" class="p-2 hover:bg-white rounded-lg transition-all shadow-sm flex items-center gap-1">
+                            <i data-lucide="chevrons-left" class="w-4 h-4"></i>
+                            <span class="text-[10px] font-bold">上兩週</span>
+                        </button>
+                        <span id="week-display" class="text-xs font-bold px-4 text-slate-700 min-w-[150px] text-center italic">當前顯示 14 天</span>
+                        <button onclick="changeWeek(2)" class="p-2 hover:bg-white rounded-lg transition-all shadow-sm flex items-center gap-1">
+                            <span class="text-[10px] font-bold">下兩週</span>
+                            <i data-lucide="chevrons-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-8">
+                <!-- 您的時間 -->
+                <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                    <div class="px-6 py-4 bg-blue-600 text-white flex justify-between items-center">
+                        <h3 class="text-sm font-bold flex items-center gap-2"><i data-lucide="mouse-pointer-2" class="w-4 h-4"></i> 您的可參加時間 (橫向拖曳框選)</h3>
+                    </div>
+                    <div class="overflow-x-auto custom-scroll pb-2">
+                        <div id="my-calendar" class="calendar-grid no-select" oncontextmenu="return false;"></div>
+                    </div>
+                </div>
+                
+                <!-- 團隊統計 -->
+                <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                    <div class="px-6 py-4 bg-slate-800 text-white flex justify-between items-center">
+                        <h3 class="text-sm font-bold flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> 團隊空檔熱點統計 (14天彙整)</h3>
+                    </div>
+                    <div class="overflow-x-auto custom-scroll pb-2">
+                        <div id="team-calendar" class="calendar-grid no-select"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxogvFVUYKbBaHqzXWFO714dhcEmjgt1r9IkwUeNtUxwYlW4eYs0IrQEVdLp7zBb_yn/exec';
+        const meetingId = new URLSearchParams(window.location.search).get('id');
+        
+        let state = {
+            userName: '',
+            password: '',
+            diet: '葷食',
+            mySlots: {},
+            groupData: {},
+            meetingInfo: null,
+            totalParticipants: 0,
+            isDragging: false,
+            dragMode: true,
+            currentWeekOffset: 0 // 以週為單位，切換會一次 +2 或 -2
+        };
+
+        const hours = Array.from({ length: 16 }, (_, i) => i + 7); // 07:00 - 22:00
+        const daysShort = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+
+        // 獲取 14 天的日期
+        const getWeekDates = () => {
+            const dates = [];
+            const today = new Date();
+            const currentDay = today.getDay();
+            const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+            const monday = new Date(today);
+            monday.setHours(0, 0, 0, 0); 
+            monday.setDate(today.getDate() + diffToMonday + (state.currentWeekOffset * 7));
+            
+            for (let i = 0; i < 14; i++) { // 這裡改為 14 天
+                const d = new Date(monday);
+                d.setDate(monday.getDate() + i);
+                dates.push(d.toISOString().split('T')[0]);
+            }
+            return dates;
+        };
+
+        window.onload = async () => {
+            lucide.createIcons();
+            if (meetingId) {
+                showView('view-auth');
+                const res = await callAPI({ action: 'getMeetingInfo', meetingId });
+                state.meetingInfo = res;
+                document.getElementById('auth-meeting-title').innerText = res?.title || '未知會議';
+                document.getElementById('auth-meeting-desc').innerText = res?.description || '';
+                if (res?.hasMeal) {
+                    document.getElementById('meal-selection-area').classList.remove('hidden');
+                }
+            } else {
+                showView('view-admin');
+            }
+        };
+
+        async function callAPI(data) {
+            try {
+                const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify(data)});
+                return await response.json();
+            } catch (e) { return { error: "網路連線異常" }; }
+        }
+
+        function showView(id) {
+            ['view-admin', 'view-auth', 'view-survey'].forEach(v => document.getElementById(v).classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        async function handleCreateMeeting() {
+            const title = document.getElementById('new-title').value.trim();
+            const desc = document.getElementById('new-desc').value.trim();
+            const hasMeal = document.getElementById('new-meal-toggle').checked;
+            if (!title) return alert("請輸入主題");
+            const res = await callAPI({ action: 'createMeeting', title, description: desc, hasMeal });
+            if (res?.meetingId) {
+                const url = window.location.origin + window.location.pathname + '?id=' + res.meetingId;
+                document.getElementById('generated-url').innerText = url;
+                document.getElementById('open-link-btn').onclick = () => { window.location.href = url; };
+                document.getElementById('link-result').classList.remove('hidden');
+            }
+        }
+
+        async function handleLogin() {
+            const nameInput = document.getElementById('login-name').value.trim();
+            const passInput = document.getElementById('login-password').value.trim();
+            const dietInput = document.querySelector('input[name="diet"]:checked')?.value || '';
+            
+            if (!nameInput || !passInput) return alert("請填寫姓名與密碼");
+            
+            const btn = document.getElementById('login-btn');
+            btn.disabled = true;
+            btn.innerText = "驗證中...";
+
+            const res = await callAPI({ action: 'getAllResponses', meetingId });
+            if (res?.responses) {
+                const myRecord = res.responses.find(r => String(r.name).trim() === nameInput);
+                if (myRecord && String(myRecord.password).trim() !== passInput) {
+                    btn.disabled = false; btn.innerText = "進入系統";
+                    return alert("密碼錯誤！");
+                }
+                state.userName = nameInput;
+                state.password = passInput;
+                state.diet = myRecord ? myRecord.diet : dietInput;
+                try { state.mySlots = myRecord ? JSON.parse(myRecord.slots) : {}; } catch(e) { state.mySlots = {}; }
+
+                processGroupData(res.responses);
+                renderCalendars();
+                document.getElementById('survey-title').innerText = state.meetingInfo.title;
+                document.getElementById('survey-desc').innerText = state.meetingInfo.description;
+                document.getElementById('display-user-name').innerText = state.userName + (state.meetingInfo.hasMeal ? ` (${state.diet})` : '');
+                document.getElementById('nav-user-info').classList.remove('hidden');
+                showView('view-survey');
+            }
+            btn.disabled = false; btn.innerText = "進入系統";
+        }
+
+        async function handleSave() {
+            const btn = document.getElementById('save-btn');
+            btn.disabled = true;
+            const res = await callAPI({
+                action: 'saveResponse',
+                meetingId,
+                name: state.userName,
+                password: state.password,
+                diet: state.diet,
+                slots: JSON.stringify(state.mySlots)
+            });
+            if (res?.status === "success") {
+                alert("儲存成功！");
+                const fresh = await callAPI({ action: 'getAllResponses', meetingId });
+                if (fresh?.responses) { processGroupData(fresh.responses); renderCalendars(); }
+            }
+            btn.disabled = false;
+        }
+
+        function processGroupData(responses) {
+            state.groupData = {};
+            state.totalParticipants = responses.length;
+            responses.forEach(r => {
+                try {
+                    const slots = JSON.parse(r.slots);
+                    Object.keys(slots).forEach(s => {
+                        if (slots[s]) {
+                            if (!state.groupData[s]) state.groupData[s] = [];
+                            state.groupData[s].push(r.name + (state.meetingInfo.hasMeal ? ` (${r.diet})` : ''));
+                        }
+                    });
+                } catch(e) {}
+            });
+        }
+
+        function toggleSlot(key, el, isPast) {
+            if (isPast) return;
+            state.mySlots[key] = state.dragMode;
+            if (state.dragMode) el.classList.add('slot-active');
+            else el.classList.remove('slot-active');
+            updateTeamStats();
+        }
+
+        function updateTeamStats() {
+            document.querySelectorAll('#team-calendar [data-team-key]').forEach(cell => {
+                const key = cell.dataset.teamKey;
+                const names = state.groupData[key] || [];
+                const count = names.length;
+                const intensity = state.totalParticipants > 0 ? (count / state.totalParticipants) : 0;
+                if (count > 0) {
+                    cell.style.backgroundColor = `rgba(34, 197, 94, ${0.2 + intensity * 0.8})`;
+                    cell.innerText = count;
+                    cell.onmouseenter = (e) => showTooltip(e, names);
+                    cell.onmouseleave = hideTooltip;
+                } else {
+                    cell.style.backgroundColor = 'transparent'; cell.innerText = '';
+                }
+            });
+        }
+
+        function renderCalendars() {
+            const myContainer = document.getElementById('my-calendar');
+            const teamContainer = document.getElementById('team-calendar');
+            myContainer.innerHTML = ''; teamContainer.innerHTML = '';
+            const dates = getWeekDates();
+            const now = new Date();
+
+            // 更新日期標頭顯示
+            const rangeStart = dates[0].split('-').slice(1).join('/');
+            const rangeEnd = dates[13].split('-').slice(1).join('/');
+            document.getElementById('week-display').innerText = `${rangeStart} - ${rangeEnd}`;
+
+            [myContainer, teamContainer].forEach(c => {
+                c.innerHTML += '<div class="w-[50px] bg-slate-50 sticky left-0 z-20"></div>';
+                dates.forEach((d, i) => {
+                    const dObj = new Date(d);
+                    const dayIdx = dObj.getDay() === 0 ? 6 : dObj.getDay() - 1; // 對應週一到週日
+                    c.innerHTML += `<div class="text-center py-2 bg-slate-50 border-r border-slate-100 min-w-[80px]">
+                        <div class="text-[9px] text-slate-400 font-bold">${daysShort[dayIdx]}</div>
+                        <div class="text-[11px] font-black">${d.split('-').slice(1).join('/')}</div>
+                    </div>`;
+                });
+            });
+
+            hours.forEach(h => {
+                [myContainer, teamContainer].forEach(c => {
+                    const isMy = c.id === 'my-calendar';
+                    const timeLabel = document.createElement('div');
+                    timeLabel.className = "w-[50px] h-8 text-[9px] flex items-center justify-center bg-slate-50 border-r border-b border-slate-100 sticky left-0 z-20";
+                    timeLabel.innerText = `${String(h).padStart(2, '0')}:00`;
+                    c.appendChild(timeLabel);
+                    dates.forEach(d => {
+                        const key = `${d}-${h}`;
+                        const slotDate = new Date(d); slotDate.setHours(h, 0, 0, 0);
+                        const isPast = slotDate < now;
+                        const el = document.createElement('div');
+                        if (isMy) {
+                            el.className = `h-8 border-r border-b border-slate-50 cursor-pointer ${isPast ? 'slot-past' : 'slot-hover'} ${state.mySlots[key] ? 'slot-active' : ''}`;
+                            if (!isPast) {
+                                el.onmousedown = (e) => { e.preventDefault(); state.dragMode = !state.mySlots[key]; state.isDragging = true; toggleSlot(key, el, false); };
+                                el.onmouseenter = () => { if (state.isDragging) toggleSlot(key, el, false); };
+                            }
+                        } else {
+                            el.className = `h-8 border-r border-b border-slate-50 flex items-center justify-center text-[10px] text-white font-bold ${isPast ? 'bg-slate-50/50' : ''}`;
+                            el.dataset.teamKey = key;
+                        }
+                        c.appendChild(el);
+                    });
+                });
+            });
+            updateTeamStats();
+        }
+
+        function showTooltip(e, names) {
+            const tt = document.getElementById('tooltip');
+            document.getElementById('tooltip-names').innerHTML = names.map(n => `<span class="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">${n}</span>`).join('');
+            tt.style.left = (e.clientX + 10) + 'px'; tt.style.top = (e.clientY + 10) + 'px';
+            tt.classList.remove('hidden');
+        }
+        function hideTooltip() { document.getElementById('tooltip').classList.add('hidden'); }
+        function copyLink() {
+            navigator.clipboard.writeText(document.getElementById('generated-url').innerText);
+            alert("連結已複製");
+        }
+        function changeWeek(dir) { state.currentWeekOffset += dir; renderCalendars(); }
+        window.onmouseup = () => { state.isDragging = false; };
+    </script>
+</body>
+</html>
