@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeetingSync V2 - 雙週會議調查</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .no-select { user-select: none; }
+        /* 欄數（天數）與寬度由 JS 依裝置動態設定 */
+        .calendar-grid { display: grid; }
+        .slot-active { background-color: #3b82f6 !important; }
+        .slot-hover:hover { background-color: #eff6ff; }
+        .slot-past { 
+            background-color: #f1f5f9 !important; 
+            cursor: not-allowed !important;
+            opacity: 0.6;
+        }
+        .custom-scroll::-webkit-scrollbar { height: 8px; width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* 時間標籤對齊格線交叉點：文字中心壓在儲存格「上緣那條線」上 */
+        .time-label { position: relative; }
+        .time-tick {
+            position: absolute;
+            left: 0; right: 0; top: 0;
+            transform: translateY(-50%);
+            text-align: center;
+            font-size: 9px;
+            font-weight: 600;
+            color: #64748b;
+            background: #f8fafc; /* 蓋住格線，讓數字清晰 */
+            padding: 0 1px;
+        }
+        /* 最後一列底部，補上「結束時間」那條線的標籤 */
+        .time-tick-end { top: auto; bottom: 0; transform: translateY(50%); }
+        /* 半點（:30）標籤較淡，整點較清楚 */
+        .time-tick-half { color: #94a3b8; font-weight: 500; }
+        /* 整點格線實線、半點格線虛線，交叉點才看得清楚 */
+        .slot-cell { border-top: 1px solid #e2e8f0; }
+        .slot-cell-half { border-top: 1px dashed #eef2f6; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen pb-10">
+
+    <div id="tooltip" class="fixed z-[9999] pointer-events-none bg-slate-900 text-white px-3 py-2 rounded-xl text-xs shadow-2xl border border-slate-700 hidden">
+        <p class="font-bold border-b border-slate-700 pb-1 mb-1.5 flex items-center gap-1.5 text-green-400">
+            <i data-lucide="users" class="w-3 h-3"></i> 有空的人：
+        </p>
+        <div id="tooltip-names" class="flex flex-wrap gap-1 max-w-[180px]"></div>
+    </div>
+
+    <!-- 載入遮罩 -->
+    <div id="loading-overlay" class="fixed inset-0 z-[9998] bg-white/70 backdrop-blur-sm hidden items-center justify-center">
+        <div class="bg-white px-6 py-4 rounded-2xl shadow-xl border border-slate-200 flex items-center gap-3">
+            <i data-lucide="loader-2" class="w-5 h-5 text-blue-600 animate-spin"></i>
+            <span id="loading-text" class="text-sm font-bold text-slate-700">載入中...</span>
+        </div>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2.5 rounded-xl text-white text-sm font-bold shadow-2xl hidden"></div>
+
+    <nav class="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-4 py-2">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <h1 class="text-lg font-black text-blue-600 flex items-center gap-2 cursor-pointer" onclick="window.location.reload()">
+                <i data-lucide="calendar" class="w-5 h-5"></i> MeetingSync
+            </h1>
+            <div id="nav-user-info" class="hidden flex items-center gap-3">
+                <div class="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
+                    <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                    <span id="display-user-name" class="text-xs font-bold text-slate-700"></span>
+                </div>
+                <button onclick="handleSave()" id="save-btn" class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm transition-all">
+                    儲存修改
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-[1600px] mx-auto px-4 mt-6">
+        <!-- 視圖：建立會議 -->
+        <div id="view-admin" class="max-w-md mx-auto bg-white rounded-3xl shadow-xl p-8 border border-slate-200 hidden">
+            <div class="mb-6 text-center">
+                <div class="bg-blue-50 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 text-blue-600">
+                    <i data-lucide="plus-circle" class="w-6 h-6"></i>
+                </div>
+                <h2 class="text-xl font-black">發起新會議 (雙週版)</h2>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 ml-1">會議主題</label>
+                    <input id="new-title" type="text" placeholder="例如：雙週進度追蹤" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 ml-1">會議說明 (選填)</label>
+                    <textarea id="new-desc" placeholder="請在此輸入會議背景或議程..." class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm h-24 resize-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 ml-1">每日調查時段</label>
+                    <div class="flex items-center gap-2">
+                        <select id="new-start-hour" class="flex-1 px-3 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"></select>
+                        <span class="text-slate-400 text-sm font-bold">至</span>
+                        <select id="new-end-hour" class="flex-1 px-3 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"></select>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-1 ml-1">例如：每天 09:00–19:00。調查表將只顯示此區間，超出範圍不會出現。</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 ml-1">時間間隔</label>
+                    <select id="new-granularity" class="w-full px-3 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                        <option value="60" selected>每 1 小時</option>
+                        <option value="30">每 30 分鐘</option>
+                    </select>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="utensils" class="w-4 h-4 text-slate-400"></i>
+                        <span class="text-sm font-bold text-slate-600">是否提供餐點</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="new-meal-toggle" class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+                <button onclick="handleCreateMeeting()" class="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold hover:bg-slate-800 transition-all text-sm">
+                    生成調查連結
+                </button>
+                <div id="link-result" class="mt-6 p-4 bg-green-50 rounded-xl border border-green-100 hidden">
+                    <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-green-200 mb-3">
+                        <code id="generated-url" class="flex-1 text-[10px] truncate text-slate-600"></code>
+                        <button onclick="copyLink()" class="p-2 text-green-600 hover:bg-green-50 rounded-md">
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <button id="open-link-btn" class="w-full bg-green-600 text-white py-2.5 rounded-lg font-bold hover:bg-green-700 transition-all text-xs flex items-center justify-center gap-2">
+                        <i data-lucide="external-link" class="w-4 h-4"></i> 前往會議頁面
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 視圖：身分登入 -->
+        <div id="view-auth" class="max-w-sm mx-auto bg-white rounded-3xl shadow-xl p-8 border border-slate-200 hidden">
+            <div class="text-center mb-6">
+                <h2 id="auth-meeting-title" class="text-xl font-black italic">載入中...</h2>
+                <p id="auth-meeting-desc" class="text-slate-400 text-xs mt-2 px-4"></p>
+            </div>
+            <div class="space-y-4">
+                <input id="login-name" type="text" placeholder="您的姓名" class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm">
+                <input id="login-password" type="password" placeholder="簡易密碼 (修改資料用)" class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm">
+                
+                <div id="meal-selection-area" class="hidden p-4 bg-orange-50 rounded-xl border border-orange-100">
+                    <p class="text-[11px] font-bold text-orange-600 mb-2 flex items-center gap-1">
+                        <i data-lucide="info" class="w-3 h-3"></i> 本會議提供餐點，請選擇：
+                    </p>
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                            <input type="radio" name="diet" value="葷食" checked class="accent-orange-600"> 葷食
+                        </label>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                            <input type="radio" name="diet" value="素食" class="accent-orange-600"> 素食
+                        </label>
+                    </div>
+                </div>
+
+                <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition-all text-sm">
+                    進入系統
+                </button>
+            </div>
+        </div>
+
+        <!-- 視圖：調查主介面 -->
+        <div id="view-survey" class="space-y-6 hidden">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h2 id="survey-title" class="text-2xl font-black uppercase">會議主題</h2>
+                        <p id="survey-desc" class="text-slate-500 text-sm mt-1 max-w-2xl"></p>
+                        <div class="mt-2 inline-flex items-center gap-1.5 bg-blue-50 text-blue-600 px-2.5 py-1 rounded-lg text-[11px] font-bold">
+                            <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                            目前已有 <span id="participant-count">0</span> 人填寫
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl shrink-0">
+                        <button onclick="moveRange(-1)" class="p-2 hover:bg-white rounded-lg transition-all shadow-sm flex items-center gap-1">
+                            <i data-lucide="chevrons-left" class="w-4 h-4"></i>
+                            <span id="prev-label" class="text-[10px] font-bold">上一頁</span>
+                        </button>
+                        <span id="week-display" class="text-xs font-bold px-4 text-slate-700 min-w-[120px] text-center italic">—</span>
+                        <button onclick="moveRange(1)" class="p-2 hover:bg-white rounded-lg transition-all shadow-sm flex items-center gap-1">
+                            <span id="next-label" class="text-[10px] font-bold">下一頁</span>
+                            <i data-lucide="chevrons-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-8">
+                <!-- 最佳時段推薦 -->
+                <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                    <div class="px-6 py-4 bg-green-600 text-white flex justify-between items-center">
+                        <h3 class="text-sm font-bold flex items-center gap-2"><i data-lucide="award" class="w-4 h-4"></i> 推薦時段（最多人有空）</h3>
+                    </div>
+                    <div id="reco-list" class="p-4 space-y-2">
+                        <p class="text-xs text-slate-400">尚無人填寫，暫無推薦時段。</p>
+                    </div>
+                </div>
+
+                <!-- 您的時間 -->
+                <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                    <div class="px-6 py-4 bg-blue-600 text-white flex justify-between items-center">
+                        <h3 class="text-sm font-bold flex items-center gap-2"><i data-lucide="mouse-pointer-2" class="w-4 h-4"></i> 您的可參加時間 (拖曳框選)</h3>
+                    </div>
+                    <div class="overflow-x-auto custom-scroll pb-2">
+                        <div id="my-calendar" class="calendar-grid no-select" oncontextmenu="return false;"></div>
+                    </div>
+                </div>
+
+                <!-- 團隊統計 -->
+                <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                    <div class="px-6 py-4 bg-slate-800 text-white flex justify-between items-center">
+                        <h3 id="team-title" class="text-sm font-bold flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> 團隊空檔熱點統計</h3>
+                    </div>
+                    <div class="overflow-x-auto custom-scroll pb-2">
+                        <div id="team-calendar" class="calendar-grid no-select"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbwxko01MrX0mGQXJIyK_rLkwn6Eef4St3LMXTTQG_kyKo3jvgqq_EOC2EZZLNXdyrgWPw/exec';
+        const urlParams = new URLSearchParams(window.location.search);
+        const meetingId = urlParams.get('id');
+
+        // ===== 會議設定（時段 / 間隔）：先用連結參數，登入後若後端有存設定再覆蓋 =====
+        let startHour = 7, endHour = 23, granularity = 60; // granularity：60 或 30 分鐘
+
+        function applyConfig(src) {
+            if (!src) return;
+            const s = parseInt(src.startHour), e = parseInt(src.endHour), g = parseInt(src.granularity);
+            if (!isNaN(s) && s >= 0 && s <= 23) startHour = s;
+            if (!isNaN(e) && e > startHour && e <= 24) endHour = e;
+            if (g === 30 || g === 60) granularity = g;
+        }
+        // 連結參數（即使後端是舊版、沒存設定，靠這些也能正確顯示）
+        applyConfig({ startHour: urlParams.get('s'), endHour: urlParams.get('e'), granularity: urlParams.get('g') });
+
+        let numDays = 14; // 桌機 14 天、手機 7 天；render 前重新判斷
+
+        let state = {
+            userName: '',
+            password: '',
+            diet: '葷食',
+            mySlots: {},
+            groupData: {},
+            meetingInfo: null,
+            totalParticipants: 0,
+            isDragging: false,
+            dragMode: true,
+            dayOffset: 0 // 以「天」為單位的位移；每次翻頁移動 numDays 天
+        };
+
+        const daysShort = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+
+        // 以「當地時間」格式化日期，避免 toISOString() 在 UTC+8 造成整體日期少一天
+        const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        // 分鐘數 → "HH:MM"
+        const minLabel = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+        // 取得目前頁面要顯示的日期（numDays 天，從本週一起算 + dayOffset）
+        const getDates = () => {
+            const dates = [];
+            const today = new Date();
+            const currentDay = today.getDay();
+            const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+            const monday = new Date(today);
+            monday.setHours(0, 0, 0, 0);
+            monday.setDate(today.getDate() + diffToMonday + state.dayOffset);
+            for (let i = 0; i < numDays; i++) {
+                const d = new Date(monday);
+                d.setDate(monday.getDate() + i);
+                dates.push(fmtDate(d));
+            }
+            return dates;
+        };
+
+        // 取得每日的時間格（以「當天分鐘數」為起點）
+        const getSlots = () => {
+            const arr = [];
+            for (let m = startHour * 60; m < endHour * 60; m += granularity) arr.push(m);
+            return arr;
+        };
+
+        function populateHourSelectors() {
+            const startSel = document.getElementById('new-start-hour');
+            const endSel = document.getElementById('new-end-hour');
+            if (!startSel || !endSel) return;
+            const label = (h) => `${String(h).padStart(2, '0')}:00`;
+            for (let h = 0; h <= 23; h++) startSel.innerHTML += `<option value="${h}" ${h === 9 ? 'selected' : ''}>${label(h)}</option>`;
+            for (let h = 1; h <= 24; h++) endSel.innerHTML += `<option value="${h}" ${h === 18 ? 'selected' : ''}>${label(h)}</option>`;
+        }
+
+        // ===== UI 工具：載入遮罩 / Toast =====
+        function showLoading(msg) {
+            document.getElementById('loading-text').innerText = msg || '載入中...';
+            const o = document.getElementById('loading-overlay');
+            o.classList.remove('hidden'); o.classList.add('flex');
+        }
+        function hideLoading() {
+            const o = document.getElementById('loading-overlay');
+            o.classList.add('hidden'); o.classList.remove('flex');
+        }
+        let toastTimer = null;
+        function toast(msg, type) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            const color = type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-slate-900';
+            t.className = `fixed top-16 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2.5 rounded-xl text-white text-sm font-bold shadow-2xl ${color}`;
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => t.classList.add('hidden'), 2600);
+        }
+
+        window.onload = async () => {
+            lucide.createIcons();
+            populateHourSelectors();
+            if (meetingId) {
+                showView('view-auth');
+                showLoading('載入會議資訊...');
+                const res = await callAPI({ action: 'getMeetingInfo', meetingId });
+                hideLoading();
+                if (!res || res.error) { toast(res?.error || '找不到會議', 'error'); }
+                state.meetingInfo = res || {};
+                applyConfig(res); // 後端若有存設定，覆蓋連結參數
+                document.getElementById('auth-meeting-title').innerText = res?.title || '未知會議';
+                document.getElementById('auth-meeting-desc').innerText = res?.description || '';
+                if (res?.hasMeal) {
+                    document.getElementById('meal-selection-area').classList.remove('hidden');
+                }
+            } else {
+                showView('view-admin');
+            }
+        };
+
+        async function callAPI(data) {
+            try {
+                const response = await fetch(API_URL, { method: 'POST', body: JSON.stringify(data) });
+                return await response.json();
+            } catch (e) { return { error: "網路連線異常，請稍後再試" }; }
+        }
+
+        function showView(id) {
+            ['view-admin', 'view-auth', 'view-survey'].forEach(v => document.getElementById(v).classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        async function handleCreateMeeting() {
+            const title = document.getElementById('new-title').value.trim();
+            const desc = document.getElementById('new-desc').value.trim();
+            const hasMeal = document.getElementById('new-meal-toggle').checked;
+            const sHour = parseInt(document.getElementById('new-start-hour').value);
+            const eHour = parseInt(document.getElementById('new-end-hour').value);
+            const gran = parseInt(document.getElementById('new-granularity').value);
+            if (!title) return toast("請輸入會議主題", 'error');
+            if (eHour <= sHour) return toast("結束時間必須晚於開始時間", 'error');
+
+            showLoading('建立會議中...');
+            // startHour/endHour/granularity 一併送後端（新版後端會儲存；舊版會忽略，靠 URL 參數仍可運作）
+            const res = await callAPI({ action: 'createMeeting', title, description: desc, hasMeal, startHour: sHour, endHour: eHour, granularity: gran });
+            hideLoading();
+            if (res?.meetingId) {
+                const url = window.location.origin + window.location.pathname + `?id=${res.meetingId}&s=${sHour}&e=${eHour}&g=${gran}`;
+                document.getElementById('generated-url').innerText = url;
+                document.getElementById('open-link-btn').onclick = () => { window.location.href = url; };
+                document.getElementById('link-result').classList.remove('hidden');
+                toast("已建立會議", 'success');
+            } else {
+                toast(res?.error || "建立失敗，請稍後再試", 'error');
+            }
+        }
+
+        async function handleLogin() {
+            const nameInput = document.getElementById('login-name').value.trim();
+            const passInput = document.getElementById('login-password').value.trim();
+            const dietInput = document.querySelector('input[name="diet"]:checked')?.value || '';
+
+            if (!nameInput || !passInput) return toast("請填寫姓名與密碼", 'error');
+
+            const btn = document.getElementById('login-btn');
+            btn.disabled = true; btn.innerText = "驗證中...";
+            showLoading('驗證身分中...');
+
+            // 優先走「後端驗證密碼」的安全流程；舊版後端不認得 login，會自動退回相容模式
+            let res = await callAPI({ action: 'login', meetingId, name: nameInput, password: passInput, diet: dietInput });
+
+            let responses = null;
+            if (res && typeof res.ok === 'boolean') {
+                // === 新版後端：密碼在伺服器端比對，回傳的名單不含密碼 ===
+                if (!res.ok) {
+                    hideLoading(); btn.disabled = false; btn.innerText = "進入系統";
+                    return toast(res.reason === 'wrong_password' ? "密碼錯誤！" : "登入失敗", 'error');
+                }
+                applyConfig(res.config);
+                state.diet = res.me?.diet || dietInput;
+                try { state.mySlots = res.me?.slots ? JSON.parse(res.me.slots) : {}; } catch (e) { state.mySlots = {}; }
+                responses = res.responses || [];
+            } else {
+                // === 相容模式：舊版後端，仍用前端比對（沿用原本邏輯）===
+                const legacy = await callAPI({ action: 'getAllResponses', meetingId });
+                if (!legacy?.responses) {
+                    hideLoading(); btn.disabled = false; btn.innerText = "進入系統";
+                    return toast(legacy?.error || "無法讀取資料", 'error');
+                }
+                const myRecord = legacy.responses.find(r => String(r.name).trim() === nameInput);
+                if (myRecord && String(myRecord.password).trim() !== passInput) {
+                    hideLoading(); btn.disabled = false; btn.innerText = "進入系統";
+                    return toast("密碼錯誤！", 'error');
+                }
+                state.diet = myRecord ? myRecord.diet : dietInput;
+                try { state.mySlots = myRecord ? JSON.parse(myRecord.slots) : {}; } catch (e) { state.mySlots = {}; }
+                responses = legacy.responses;
+            }
+
+            state.userName = nameInput;
+            state.password = passInput;
+            processGroupData(responses);
+            renderCalendars();
+            document.getElementById('survey-title').innerText = state.meetingInfo.title || '';
+            document.getElementById('survey-desc').innerText = state.meetingInfo.description || '';
+            document.getElementById('display-user-name').innerText = state.userName + (state.meetingInfo.hasMeal ? ` (${state.diet})` : '');
+            document.getElementById('nav-user-info').classList.remove('hidden');
+            showView('view-survey');
+
+            hideLoading();
+            btn.disabled = false; btn.innerText = "進入系統";
+        }
+
+        async function handleSave() {
+            const btn = document.getElementById('save-btn');
+            btn.disabled = true;
+            showLoading('儲存中...');
+            const res = await callAPI({
+                action: 'saveResponse',
+                meetingId,
+                name: state.userName,
+                password: state.password,
+                diet: state.diet,
+                slots: JSON.stringify(state.mySlots)
+            });
+            if (res?.status === "success") {
+                // 重新抓最新團隊資料
+                const fresh = await callAPI({ action: 'getAllResponses', meetingId });
+                if (fresh?.responses) { processGroupData(fresh.responses); renderCalendars(); }
+                hideLoading();
+                toast("儲存成功！", 'success');
+            } else {
+                hideLoading();
+                toast(res?.error || "儲存失敗，請稍後再試", 'error');
+            }
+            btn.disabled = false;
+        }
+
+        function processGroupData(responses) {
+            state.groupData = {};
+            state.totalParticipants = responses.length;
+            responses.forEach(r => {
+                try {
+                    const slots = JSON.parse(r.slots);
+                    Object.keys(slots).forEach(s => {
+                        if (slots[s]) {
+                            if (!state.groupData[s]) state.groupData[s] = [];
+                            state.groupData[s].push(r.name + (state.meetingInfo.hasMeal ? ` (${r.diet})` : ''));
+                        }
+                    });
+                } catch (e) {}
+            });
+        }
+
+        function toggleSlot(key, el, isPast) {
+            if (isPast || !el) return;
+            state.mySlots[key] = state.dragMode;
+            if (state.dragMode) el.classList.add('slot-active');
+            else el.classList.remove('slot-active');
+            updateTeamStats();
+        }
+
+        function updateTeamStats() {
+            document.querySelectorAll('#team-calendar [data-team-key]').forEach(cell => {
+                const key = cell.dataset.teamKey;
+                const names = state.groupData[key] || [];
+                const count = names.length;
+                const intensity = state.totalParticipants > 0 ? (count / state.totalParticipants) : 0;
+                if (count > 0) {
+                    cell.style.backgroundColor = `rgba(34, 197, 94, ${0.2 + intensity * 0.8})`;
+                    cell.innerText = count;
+                    cell.onmouseenter = (e) => showTooltip(e, names);
+                    cell.onmouseleave = hideTooltip;
+                } else {
+                    cell.style.backgroundColor = 'transparent'; cell.innerText = '';
+                }
+            });
+            document.getElementById('participant-count').innerText = state.totalParticipants;
+            renderRecommendations();
+        }
+
+        // 由 groupData 算出最多人有空的前 3 個時段
+        function renderRecommendations() {
+            const panel = document.getElementById('reco-list');
+            if (!panel) return;
+            const entries = Object.keys(state.groupData)
+                .map(k => ({ key: k, names: state.groupData[k], count: state.groupData[k].length }))
+                .filter(x => x.count > 0)
+                .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key))
+                .slice(0, 3);
+
+            if (!entries.length) {
+                panel.innerHTML = '<p class="text-xs text-slate-400">尚無人填寫，暫無推薦時段。</p>';
+                return;
+            }
+            panel.innerHTML = entries.map((x, i) => {
+                const idx = x.key.lastIndexOf('-');
+                const d = x.key.slice(0, idx);
+                const m = parseInt(x.key.slice(idx + 1));
+                const dObj = new Date(d + 'T00:00:00');
+                const dayIdx = dObj.getDay() === 0 ? 6 : dObj.getDay() - 1;
+                const dateLabel = d.split('-').slice(1).join('/');
+                const timeRange = `${minLabel(m)}–${minLabel(m + granularity)}`;
+                const pct = state.totalParticipants ? Math.round(x.count / state.totalParticipants * 100) : 0;
+                const medal = ['bg-green-600', 'bg-green-500', 'bg-green-400'][i];
+                return `<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl ${i === 0 ? 'bg-green-50 border border-green-200' : 'bg-slate-50 border border-slate-100'}">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="${medal} text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0">${i + 1}</span>
+                        <div class="min-w-0">
+                            <div class="text-xs font-bold">${dateLabel}（${daysShort[dayIdx]}）${timeRange}</div>
+                            <div class="text-[10px] text-slate-500 truncate">${x.names.join('、')}</div>
+                        </div>
+                    </div>
+                    <div class="text-right shrink-0">
+                        <div class="text-sm font-black text-green-600">${x.count}<span class="text-[10px] text-slate-400 font-normal">/${state.totalParticipants}</span></div>
+                        <div class="text-[9px] text-slate-400">${pct}%</div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderCalendars() {
+            numDays = window.innerWidth < 768 ? 7 : 14; // 響應式：手機 7 天、桌機 14 天
+            const dayW = numDays === 7 ? 46 : 80;       // 每天欄寬
+            const myContainer = document.getElementById('my-calendar');
+            const teamContainer = document.getElementById('team-calendar');
+            myContainer.innerHTML = ''; teamContainer.innerHTML = '';
+            const dates = getDates();
+            const slots = getSlots();
+            const now = new Date();
+
+            // 翻頁鈕與範圍標示
+            document.getElementById('prev-label').innerText = `上 ${numDays} 天`;
+            document.getElementById('next-label').innerText = `下 ${numDays} 天`;
+            const rangeStart = dates[0].split('-').slice(1).join('/');
+            const rangeEnd = dates[dates.length - 1].split('-').slice(1).join('/');
+            document.getElementById('week-display').innerText = `${rangeStart} - ${rangeEnd}`;
+            document.getElementById('team-title').innerHTML = `<i data-lucide="users" class="w-4 h-4"></i> 團隊空檔熱點統計（${numDays} 天彙整）`;
+
+            [myContainer, teamContainer].forEach(c => {
+                c.style.gridTemplateColumns = `50px repeat(${numDays}, minmax(${dayW}px, 1fr))`;
+                c.style.minWidth = (50 + numDays * dayW) + 'px';
+                c.innerHTML += '<div class="w-[50px] bg-slate-50 sticky left-0 z-20"></div>';
+                dates.forEach(d => {
+                    const dObj = new Date(d + 'T00:00:00');
+                    const dayIdx = dObj.getDay() === 0 ? 6 : dObj.getDay() - 1;
+                    const isWeekend = dayIdx >= 5;
+                    c.innerHTML += `<div class="text-center py-2 bg-slate-50 border-r border-slate-100">
+                        <div class="text-[9px] font-bold ${isWeekend ? 'text-rose-400' : 'text-slate-400'}">${daysShort[dayIdx]}</div>
+                        <div class="text-[11px] font-black">${d.split('-').slice(1).join('/')}</div>
+                    </div>`;
+                });
+            });
+
+            slots.forEach((m, sIdx) => {
+                const isLastRow = sIdx === slots.length - 1;
+                const isHalf = m % 60 !== 0; // 半點
+                [myContainer, teamContainer].forEach(c => {
+                    const isMy = c.id === 'my-calendar';
+                    const timeLabel = document.createElement('div');
+                    timeLabel.className = "time-label w-[50px] h-8 bg-slate-50 border-r border-slate-100 sticky left-0 z-20";
+                    // 標籤壓在「該列上緣的格線」上 → 時間對齊格線交叉點
+                    timeLabel.innerHTML = `<span class="time-tick ${isHalf ? 'time-tick-half' : ''}">${minLabel(m)}</span>`;
+                    if (isLastRow) {
+                        timeLabel.innerHTML += `<span class="time-tick time-tick-end">${minLabel(endHour * 60)}</span>`;
+                    }
+                    c.appendChild(timeLabel);
+                    dates.forEach(d => {
+                        const key = `${d}-${m}`;
+                        const slotDate = new Date(d + 'T00:00:00'); slotDate.setHours(Math.floor(m / 60), m % 60, 0, 0);
+                        const isPast = slotDate < now;
+                        const gridClass = isHalf ? 'slot-cell-half' : 'slot-cell';
+                        const el = document.createElement('div');
+                        if (isMy) {
+                            el.className = `${gridClass} h-8 border-r border-slate-100 cursor-pointer ${isPast ? 'slot-past' : 'slot-hover'} ${state.mySlots[key] ? 'slot-active' : ''}`;
+                            if (!isPast) {
+                                el.dataset.myKey = key;
+                                el.onmousedown = (e) => { e.preventDefault(); state.dragMode = !state.mySlots[key]; state.isDragging = true; toggleSlot(key, el, false); };
+                                el.onmouseenter = () => { if (state.isDragging) toggleSlot(key, el, false); };
+                                el.ontouchstart = (e) => { e.preventDefault(); state.dragMode = !state.mySlots[key]; state.isDragging = true; toggleSlot(key, el, false); };
+                            }
+                        } else {
+                            el.className = `${gridClass} h-8 border-r border-slate-100 flex items-center justify-center text-[10px] text-white font-bold ${isPast ? 'bg-slate-50/50' : ''}`;
+                            el.dataset.teamKey = key;
+                        }
+                        c.appendChild(el);
+                    });
+                });
+            });
+            lucide.createIcons();
+            updateTeamStats();
+        }
+
+        function showTooltip(e, names) {
+            const tt = document.getElementById('tooltip');
+            document.getElementById('tooltip-names').innerHTML = names.map(n => `<span class="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">${n}</span>`).join('');
+            tt.style.left = (e.clientX + 10) + 'px'; tt.style.top = (e.clientY + 10) + 'px';
+            tt.classList.remove('hidden');
+        }
+        function hideTooltip() { document.getElementById('tooltip').classList.add('hidden'); }
+        function copyLink() {
+            navigator.clipboard.writeText(document.getElementById('generated-url').innerText);
+            toast("連結已複製", 'success');
+        }
+        function moveRange(dir) { state.dayOffset += dir * numDays; renderCalendars(); }
+
+        // 滑鼠 / 觸控結束都停止拖曳
+        window.addEventListener('mouseup', () => { state.isDragging = false; });
+        window.addEventListener('touchend', () => { state.isDragging = false; });
+        // 手機觸控拖曳框選：用手指目前位置找出底下的時間格
+        window.addEventListener('touchmove', (e) => {
+            if (!state.isDragging) return;
+            e.preventDefault();
+            const t = e.touches[0];
+            const el = document.elementFromPoint(t.clientX, t.clientY);
+            if (el && el.dataset && el.dataset.myKey) toggleSlot(el.dataset.myKey, el, false);
+        }, { passive: false });
+
+        // 視窗縮放時，若桌機/手機天數切換則重畫（僅在調查畫面）
+        let resizeTimer = null;
+        window.addEventListener('resize', () => {
+            if (document.getElementById('view-survey').classList.contains('hidden')) return;
+            const want = window.innerWidth < 768 ? 7 : 14;
+            if (want === numDays) return;
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(renderCalendars, 150);
+        });
+    </script>
+</body>
+</html>
